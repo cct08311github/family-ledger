@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 import '../../providers/member_provider.dart';
 import '../../services/app_settings_service.dart';
 import '../../services/firebase_sync_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../providers/theme_provider.dart';
 import 'category_management_page.dart';
@@ -179,22 +180,57 @@ class SettingsPage extends ConsumerWidget {
             ),
           ])),
           const Gap(16),
-          // 同步設定
+          // 帳號 & 同步
           Card(child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Icon(Icons.sync_outlined, color: theme.colorScheme.primary, size: 20),
                 const Gap(8),
-                Text('跨裝置同步', style: theme.textTheme.titleMedium),
+                Text('帳號與同步', style: theme.textTheme.titleMedium),
               ]),
-              const Gap(4),
-              Text(
-                FirebaseSyncService.isSignedIn ? '已連線 ✓' : '未連線',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: FirebaseSyncService.isSignedIn ? Colors.green : theme.colorScheme.error),
-              ),
-              const Gap(12),
+              const Gap(8),
+              // 帳號狀態
+              if (AuthService.isSignedIn) ...[
+                Row(children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  const Gap(6),
+                  Expanded(child: Text(
+                    'Apple ID 已登入${AuthService.email != null ? '（${AuthService.email}）' : ''}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.green),
+                  )),
+                ]),
+                const Gap(4),
+                Text('多台裝置登入同一個 Apple ID 即可自動同步',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
+              ] else ...[
+                Row(children: [
+                  Icon(Icons.info_outline, size: 16,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+                  const Gap(6),
+                  Text('匿名模式（僅限本機）',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
+                ]),
+                const Gap(12),
+                SizedBox(width: double.infinity, child: FilledButton.icon(
+                  icon: const Icon(Icons.apple, size: 20),
+                  label: const Text('使用 Apple ID 登入'),
+                  onPressed: () => _signInWithApple(context),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.onSurface,
+                    foregroundColor: theme.colorScheme.surface,
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                )),
+                const Gap(4),
+                Text('登入後可跨裝置同步，同 Apple ID 的所有裝置自動共享資料',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
+              ],
+              const Gap(16),
+              // 邀請碼
               SizedBox(width: double.infinity, child: OutlinedButton.icon(
                 icon: const Icon(Icons.link, size: 18),
                 label: const Text('產生邀請碼（分享給家人）'),
@@ -305,6 +341,29 @@ class SettingsPage extends ConsumerWidget {
         }, child: const Text('儲存')),
       ],
     ));
+  }
+
+  void _signInWithApple(BuildContext context) async {
+    try {
+      final user = await AuthService.signInWithApple();
+      if (user == null) return;
+      // 重新同步（新 UID 可能不同）
+      await FirebaseSyncService.initialSync();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Apple ID 登入成功${user.email != null ? "（${user.email}）" : ""}'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('登入失敗：$e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
   }
 
   void _generateInviteCode(BuildContext context) async {
