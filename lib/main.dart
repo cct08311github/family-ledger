@@ -30,17 +30,13 @@ void main() async {
     androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
   );
 
-  // 如果尚未登入，先匿名登入（使用者可稍後在設定升級為 Google Sign-In）
+  // 已登入 Google → 自動同步
   try {
-    if (!AuthService.hasAnyAuth) {
-      await AuthService.signInAnonymously();
-    }
-    // 僅在已登入（非匿名）時才同步到 Firestore
     if (AuthService.isSignedIn) {
       await FirebaseSyncService.initialSync();
     }
   } catch (_) {
-    // Firebase 初始化失敗不阻擋 app 啟動（離線模式可用）
+    // 同步失敗不阻擋 app 啟動
   }
 
   // 初始化本地推播通知

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/theme_provider.dart';
+import 'services/auth_service.dart';
+import 'screens/auth/login_page.dart';
 import 'screens/home/home_page.dart';
 import 'screens/split/split_overview_page.dart';
 import 'screens/records/records_page.dart';
@@ -21,7 +23,7 @@ class FamilyLedgerApp extends ConsumerWidget {
       theme: _buildTheme(settings.theme.lightSeed, Brightness.light),
       darkTheme: _buildTheme(settings.theme.darkSeed, Brightness.dark),
       themeMode: settings.mode,
-      home: const MainShell(),
+      home: const _AuthGate(),
     );
   }
 
@@ -51,6 +53,27 @@ class FamilyLedgerApp extends ConsumerWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
+  }
+}
+
+/// 認證閘門：未登入 Google → 登入頁，已登入 → 主畫面
+class _AuthGate extends StatefulWidget {
+  const _AuthGate();
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  bool _isLoggedIn = AuthService.isSignedIn;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isLoggedIn) {
+      return LoginPage(
+        onLoginSuccess: () => setState(() => _isLoggedIn = true),
+      );
+    }
+    return const MainShell();
   }
 }
 
