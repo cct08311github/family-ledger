@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import '../../providers/member_provider.dart';
 import '../../services/app_settings_service.dart';
+import '../../providers/theme_provider.dart';
 import 'category_management_page.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -102,6 +103,40 @@ class SettingsPage extends ConsumerWidget {
                   )).toList());
                 },
               ),
+            ]),
+          )),
+          const Gap(16),
+          // 主題設定
+          Card(child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.palette_outlined, color: theme.colorScheme.primary, size: 20),
+                const Gap(8),
+                Text('主題', style: theme.textTheme.titleMedium),
+              ]),
+              const Gap(12),
+              // 模式切換
+              SegmentedButton<ThemeMode>(
+                segments: const [
+                  ButtonSegment(value: ThemeMode.system, label: Text('跟隨系統'), icon: Icon(Icons.brightness_auto)),
+                  ButtonSegment(value: ThemeMode.light, label: Text('淺色'), icon: Icon(Icons.light_mode)),
+                  ButtonSegment(value: ThemeMode.dark, label: Text('深色'), icon: Icon(Icons.dark_mode)),
+                ],
+                selected: {ref.watch(themeSettingsProvider).mode},
+                onSelectionChanged: (s) => ref.read(themeSettingsProvider.notifier).setMode(s.first),
+              ),
+              const Gap(16),
+              // 配色選擇
+              Wrap(spacing: 8, runSpacing: 8, children: AppTheme.values.map((t) {
+                final isSelected = ref.watch(themeSettingsProvider).theme == t;
+                return ChoiceChip(
+                  label: Text(t.label),
+                  selected: isSelected,
+                  avatar: CircleAvatar(backgroundColor: t.lightSeed, radius: 10),
+                  onSelected: (_) => ref.read(themeSettingsProvider.notifier).setTheme(t),
+                );
+              }).toList()),
             ]),
           )),
           const Gap(16),

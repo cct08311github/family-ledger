@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'providers/theme_provider.dart';
 import 'screens/home/home_page.dart';
 import 'screens/split/split_overview_page.dart';
 import 'screens/records/records_page.dart';
@@ -7,25 +9,26 @@ import 'screens/settings/settings_page.dart';
 import 'screens/expense/expense_form_page.dart';
 
 /// 家計本 App 主體
-class FamilyLedgerApp extends StatelessWidget {
+class FamilyLedgerApp extends ConsumerWidget {
   const FamilyLedgerApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(themeSettingsProvider);
     return MaterialApp(
       title: '家計本',
       debugShowCheckedModeBanner: false,
-      theme: _buildLightTheme(),
-      darkTheme: _buildDarkTheme(),
-      themeMode: ThemeMode.system,
+      theme: _buildTheme(settings.theme.lightSeed, Brightness.light),
+      darkTheme: _buildTheme(settings.theme.darkSeed, Brightness.dark),
+      themeMode: settings.mode,
       home: const MainShell(),
     );
   }
 
-  ThemeData _buildLightTheme() {
+  ThemeData _buildTheme(Color seedColor, Brightness brightness) {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF2E7D32),
-      brightness: Brightness.light,
+      seedColor: seedColor,
+      brightness: brightness,
     );
     return ThemeData(
       useMaterial3: true,
@@ -45,28 +48,6 @@ class FamilyLedgerApp extends StatelessWidget {
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
         elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
-  }
-
-  ThemeData _buildDarkTheme() {
-    final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF66BB6A),
-      brightness: Brightness.dark,
-    );
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: colorScheme,
-      fontFamily: 'NotoSansTC',
-      appBarTheme: AppBarTheme(
-        centerTitle: true,
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-      ),
-      cardTheme: CardThemeData(
-        elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
