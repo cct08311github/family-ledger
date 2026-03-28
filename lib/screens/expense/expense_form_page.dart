@@ -13,6 +13,9 @@ import '../../providers/member_provider.dart';
 import '../../providers/expense_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../services/image_storage_service.dart';
+import '../../services/expense_parser_service.dart';
+import '../../services/app_settings_service.dart';
+import '../../widgets/voice_input_button.dart';
 
 class ExpenseFormPage extends ConsumerStatefulWidget {
   final Expense? existingExpense;
@@ -85,6 +88,67 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     super.dispose();
   }
 
+  bool _isParsingVoice = false;
+
+  Future<void> _handleVoiceResult(String text) async {
+    final categories = ref.read(categoriesProvider).valueOrNull ?? [];
+    final categoryNames = categories.map((c) => c.name).toList();
+
+    // Check API key
+    final apiKey = await AppSettingsService.geminiApiKey;
+    if (apiKey == null || apiKey.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('請先到設定頁面設定 Gemini API Key'), behavior: SnackBarBehavior.floating),
+        );
+      }
+      return;
+    }
+
+    ExpenseParserService.configure(apiKey: apiKey);
+    setState(() => _isParsingVoice = true);
+
+    try {
+      final result = await ExpenseParserService.parse(
+        text,
+        availableCategories: categoryNames,
+      );
+
+      if (!mounted) return;
+
+      // Fill form fields
+      _descAutoController?.text = result['description'] as String;
+      _amountController.text = (result['amount'] as double).toStringAsFixed(0);
+
+      final cat = result['category'] as String;
+      if (categoryNames.contains(cat)) {
+        setState(() => _selectedCategory = cat);
+      }
+
+      final dateStr = result['date'] as String?;
+      if (dateStr != null) {
+        final parsed = DateTime.tryParse(dateStr);
+        if (parsed != null) setState(() => _selectedDate = parsed);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('已解析：${result['description']}  NT\$ ${(result['amount'] as double).toStringAsFixed(0)}'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI 解析失敗：$e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isParsingVoice = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -93,7 +157,26 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     final currentUser = ref.watch(currentUserProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? '編輯支出' : '新增支出')),
+      appBar: AppBar(
+        title: Text(_isEditing ? '編輯支出' : '新增支出'),
+        actions: _isEditing ? null : [
+          if (_isParsingVoice)
+            const Padding(
+              padding: EdgeInsets.only(right: 12),
+              child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: VoiceInputButton(
+                onResult: _handleVoiceResult,
+                onError: (e) => ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(e), behavior: SnackBarBehavior.floating),
+                ),
+              ),
+            ),
+        ],
+      ),
       body: members.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('錯誤：$e')),

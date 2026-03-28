@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import '../../providers/member_provider.dart';
+import '../../services/app_settings_service.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -103,6 +104,17 @@ class SettingsPage extends ConsumerWidget {
             ]),
           )),
           const Gap(16),
+          // AI 設定
+          Card(child: Column(children: [
+            ListTile(
+              leading: const Icon(Icons.smart_toy_outlined),
+              title: const Text('Gemini API Key'),
+              subtitle: const Text('語音記帳 AI 解析所需'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _showApiKeyDialog(context),
+            ),
+          ])),
+          const Gap(16),
           // 其他設定
           Card(child: Column(children: [
             ListTile(
@@ -158,6 +170,43 @@ class SettingsPage extends ConsumerWidget {
           if (name.isNotEmpty) {
             ref.read(memberNotifierProvider.notifier).updateMember(id, name);
             Navigator.pop(ctx);
+          }
+        }, child: const Text('儲存')),
+      ],
+    ));
+  }
+
+  void _showApiKeyDialog(BuildContext context) async {
+    final currentKey = await AppSettingsService.geminiApiKey;
+    final controller = TextEditingController(text: currentKey);
+    if (!context.mounted) return;
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('設定 Gemini API Key'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('語音記帳需要 Google Gemini API Key 來進行 AI 解析。'),
+        const SizedBox(height: 16),
+        TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: '請輸入 API Key',
+            border: OutlineInputBorder(),
+          ),
+          obscureText: true,
+          autocorrect: false,
+          enableSuggestions: false,
+        ),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+        FilledButton(onPressed: () async {
+          final key = controller.text.trim();
+          await AppSettingsService.setGeminiApiKey(key.isEmpty ? null : key);
+          if (ctx.mounted) {
+            Navigator.pop(ctx);
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(content: Text(key.isEmpty ? 'API Key 已清除' : 'API Key 已儲存'),
+                  behavior: SnackBarBehavior.floating),
+            );
           }
         }, child: const Text('儲存')),
       ],
