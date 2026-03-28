@@ -32,6 +32,17 @@ final recentExpensesProvider = StreamProvider.family<List<Expense>, int>((ref, c
   yield* isar.expenses.where().sortByDateDesc().limit(count).watch(fireImmediately: true);
 });
 
+/// 最近 200 筆不重複描述（依時間排序，最新在前）
+final recentDescriptionsProvider = FutureProvider<List<String>>((ref) async {
+  final isar = await DatabaseService.instance;
+  final expenses = await isar.expenses.where().sortByDateDesc().limit(200).findAll();
+  final seen = <String>{};
+  return expenses
+      .map((e) => e.description)
+      .where((d) => d.isNotEmpty && seen.add(d))
+      .toList();
+});
+
 final expenseNotifierProvider = AsyncNotifierProvider<ExpenseNotifier, void>(ExpenseNotifier.new);
 
 class ExpenseNotifier extends AsyncNotifier<void> {
