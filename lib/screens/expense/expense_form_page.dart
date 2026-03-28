@@ -16,6 +16,7 @@ import '../../services/image_storage_service.dart';
 import '../../services/expense_parser_service.dart';
 import '../../services/app_settings_service.dart';
 import '../../widgets/voice_input_button.dart';
+import '../../widgets/calculator_sheet.dart';
 
 class ExpenseFormPage extends ConsumerStatefulWidget {
   final Expense? existingExpense;
@@ -274,8 +275,23 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
               const Gap(16),
               // 金額
               TextFormField(controller: _amountController,
-                  decoration: const InputDecoration(labelText: '金額', prefixText: 'NT\$ ',
-                      prefixIcon: Icon(Icons.attach_money), border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: '金額', prefixText: 'NT\$ ',
+                      prefixIcon: const Icon(Icons.attach_money), border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.calculate_outlined),
+                        tooltip: '計算機',
+                        onPressed: () async {
+                          final result = await showModalBottomSheet<String>(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (_) => CalculatorSheet(initialValue: _amountController.text),
+                          );
+                          if (result != null) {
+                            _amountController.text = result;
+                            setState(() {});
+                          }
+                        },
+                      )),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onChanged: (_) => setState(() {}),
