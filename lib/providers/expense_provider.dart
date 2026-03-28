@@ -7,6 +7,7 @@ import '../models/split_detail.dart';
 import '../services/database_service.dart';
 import '../services/image_storage_service.dart';
 import 'balance_provider.dart';
+import 'activity_log_provider.dart';
 
 const _uuid = Uuid();
 
@@ -87,6 +88,12 @@ class ExpenseNotifier extends AsyncNotifier<void> {
     await isar.writeTxn(() async {
       await isar.expenses.put(expense);
     });
+    await ActivityLogger.log(
+      action: 'expense_add',
+      actorName: payerName, actorId: payerId,
+      description: '$payerName 新增支出「$description」NT\$ ${amount.toStringAsFixed(0)}',
+      entityId: expense.id,
+    );
     if (isShared) {
       await ref.read(balanceNotifierProvider.notifier).recalculate();
     }
@@ -98,6 +105,12 @@ class ExpenseNotifier extends AsyncNotifier<void> {
     await isar.writeTxn(() async {
       await isar.expenses.put(expense);
     });
+    await ActivityLogger.log(
+      action: 'expense_edit',
+      actorName: expense.payerName, actorId: expense.payerId,
+      description: '${expense.payerName} 編輯支出「${expense.description}」',
+      entityId: expense.id,
+    );
     if (expense.isShared) {
       await ref.read(balanceNotifierProvider.notifier).recalculate();
     }
@@ -113,6 +126,12 @@ class ExpenseNotifier extends AsyncNotifier<void> {
     if (receiptPath != null) {
       await ImageStorageService.deleteReceipt(receiptPath);
     }
+    await ActivityLogger.log(
+      action: 'expense_delete',
+      actorName: expense.payerName, actorId: expense.payerId,
+      description: '刪除支出「${expense.description}」NT\$ ${expense.amount.toStringAsFixed(0)}',
+      entityId: expense.id,
+    );
     if (wasShared) {
       await ref.read(balanceNotifierProvider.notifier).recalculate();
     }

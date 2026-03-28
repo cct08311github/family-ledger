@@ -5,6 +5,7 @@ import '../../providers/member_provider.dart';
 import '../../services/app_settings_service.dart';
 import '../../providers/theme_provider.dart';
 import 'category_management_page.dart';
+import 'activity_log_page.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -160,6 +161,18 @@ class SettingsPage extends ConsumerWidget {
               subtitle: const Text('語音記帳 AI 解析所需'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _showApiKeyDialog(context),
+            ),
+          ])),
+          const Gap(16),
+          // 操作日誌
+          Card(child: Column(children: [
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('操作日誌'),
+              subtitle: const Text('查看所有成員的操作記錄'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ActivityLogPage())),
             ),
           ])),
           const Gap(16),
