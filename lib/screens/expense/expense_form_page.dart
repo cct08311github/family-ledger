@@ -44,7 +44,8 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   Map<String, TextEditingController> _pctCtrl = {};
   Map<String, TextEditingController> _customCtrl = {};
   PaymentMethod _paymentMethod = PaymentMethod.cash;
-  String? _receiptPath;
+  List<String> _receiptPaths = [];
+  static const _maxPhotos = 10;
   TextEditingController? _descAutoController;
 
   String get _descText => (_descAutoController ?? _descController).text;
@@ -65,7 +66,13 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       _splitMethod = e.splitMethod;
       _payerId = e.payerId;
       _paymentMethod = e.paymentMethod;
-      _receiptPath = isDuplicate ? null : e.receiptPath;
+      if (!isDuplicate) {
+        _receiptPaths = [...e.receiptPaths];
+        // 向下相容：舊資料只有 receiptPath
+        if (_receiptPaths.isEmpty && e.receiptPath != null) {
+          _receiptPaths = [e.receiptPath!];
+        }
+      }
       _participantIds = e.splits.where((s) => s.isParticipant).map((s) => s.memberId).toSet();
       if (_splitMethod == SplitMethod.percentage) {
         final total = e.amount;
@@ -457,43 +464,50 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                       prefixIcon: Icon(Icons.note_outlined), border: OutlineInputBorder()),
                   maxLines: 2),
               const Gap(16),
-              // 收據照片
-              Text('收據 / 發票照片', style: theme.textTheme.labelLarge),
-              const Gap(8),
-              if (_receiptPath != null) ...[
-                Stack(children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.file(File(_receiptPath!),
-                        height: 200, width: double.infinity, fit: BoxFit.cover),
-                  ),
-                  Positioned(top: 8, right: 8, child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    _CircleIconButton(
-                      icon: Icons.fullscreen,
-                      onTap: () => _viewReceiptFullScreen(_receiptPath!),
-                    ),
-                    const Gap(8),
-                    _CircleIconButton(
-                      icon: Icons.close,
-                      onTap: () {
-                        final old = _receiptPath;
-                        setState(() => _receiptPath = null);
-                        if (old != null) ImageStorageService.deleteReceipt(old);
-                      },
-                    ),
-                  ])),
-                ]),
+              // 收據照片（多張，上限 10 張）
+              Row(children: [
+                Text('收據 / 發票照片', style: theme.textTheme.labelLarge),
                 const Gap(8),
-                OutlinedButton.icon(
-                  onPressed: _pickReceipt,
-                  icon: const Icon(Icons.swap_horiz, size: 18),
-                  label: const Text('更換照片'),
+                Text('${_receiptPaths.length}/$_maxPhotos',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
+              ]),
+              const Gap(8),
+              if (_receiptPaths.isNotEmpty) ...[
+                SizedBox(
+                  height: 120,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _receiptPaths.length,
+                    separatorBuilder: (_, __) => const Gap(8),
+                    itemBuilder: (context, index) {
+                      final path = _receiptPaths[index];
+                      return Stack(children: [
+                        GestureDetector(
+                          onTap: () => _viewReceiptFullScreen(path),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.file(File(path), width: 120, height: 120, fit: BoxFit.cover),
+                          ),
+                        ),
+                        Positioned(top: 4, right: 4, child: _CircleIconButton(
+                          icon: Icons.close,
+                          onTap: () {
+                            setState(() => _receiptPaths.removeAt(index));
+                            ImageStorageService.deleteReceipt(path);
+                          },
+                        )),
+                      ]);
+                    },
+                  ),
                 ),
-              ] else
+                const Gap(8),
+              ],
+              if (_receiptPaths.length < _maxPhotos)
                 OutlinedButton.icon(
                   onPressed: _pickReceipt,
                   icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                  label: const Text('拍照或選擇照片'),
+                  label: Text(_receiptPaths.isEmpty ? '拍照或選擇照片' : '新增照片'),
                   style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                 ),
               const Gap(32),
@@ -523,12 +537,11 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       ])),
     );
     if (source == null) return;
+    if (_receiptPaths.length >= _maxPhotos) return;
     final picked = await ImagePicker().pickImage(source: source, maxWidth: 1920, imageQuality: 85);
     if (picked == null) return;
-    final old = _receiptPath;
     final saved = await ImageStorageService.saveReceipt(picked.path);
-    if (old != null) await ImageStorageService.deleteReceipt(old);
-    setState(() => _receiptPath = saved);
+    setState(() => _receiptPaths.add(saved));
   }
 
   void _viewReceiptFullScreen(String path) {
@@ -603,7 +616,8 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
         ..payerName = nameMap[_payerId] ?? ''
         ..splits = splits
         ..paymentMethod = _paymentMethod
-        ..receiptPath = _receiptPath
+        ..receiptPath = _receiptPaths.isNotEmpty ? _receiptPaths.first : null
+        ..receiptPaths = _receiptPaths
         ..note = _noteController.text.trim().isEmpty ? null : _noteController.text.trim();
       await ref.read(expenseNotifierProvider.notifier).updateExpense(existing);
     } else {
@@ -612,7 +626,9 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
         amount: amount, category: _selectedCategory, isShared: _isShared,
         splitMethod: _splitMethod, payerId: _payerId!,
         payerName: nameMap[_payerId] ?? '', splits: splits,
-        paymentMethod: _paymentMethod, receiptPath: _receiptPath,
+        paymentMethod: _paymentMethod,
+        receiptPath: _receiptPaths.isNotEmpty ? _receiptPaths.first : null,
+        receiptPaths: _receiptPaths,
         note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
         createdBy: currentUser?.id ?? _payerId!,
       );

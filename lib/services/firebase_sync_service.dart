@@ -116,6 +116,7 @@ class FirebaseSyncService {
         'isParticipant': s.isParticipant,
       }).toList(),
       'receiptPath': expense.receiptPath,
+      'receiptPaths': expense.receiptPaths,
       'note': expense.note,
       'createdBy': expense.createdBy,
       'createdAt': Timestamp.fromDate(expense.createdAt),
