@@ -38,7 +38,9 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   Map<String, TextEditingController> _pctCtrl = {};
   Map<String, TextEditingController> _customCtrl = {};
   String? _receiptPath;
+  TextEditingController? _descAutoController;
 
+  String get _descText => (_descAutoController ?? _descController).text;
   bool get _isEditing => widget.existingExpense != null;
 
   @override
@@ -130,11 +132,62 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                 ),
               ),
               const Gap(16),
-              // 描述
-              TextFormField(controller: _descController,
-                  decoration: const InputDecoration(labelText: '描述', hintText: '例如：晚餐、加油、水費...',
-                      prefixIcon: Icon(Icons.description_outlined), border: OutlineInputBorder()),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? '請輸入描述' : null),
+              // 描述（自動提示最近輸入）
+              LayoutBuilder(builder: (context, constraints) {
+                final recentDescs = ref.watch(recentDescriptionsProvider).valueOrNull ?? [];
+                return Autocomplete<String>(
+                  optionsBuilder: (textEditingValue) {
+                    if (textEditingValue.text.isEmpty) return recentDescs.take(5);
+                    final query = textEditingValue.text.toLowerCase();
+                    return recentDescs.where((d) => d.toLowerCase().contains(query)).take(8);
+                  },
+                  onSelected: (value) {
+                    _descAutoController?.text = value;
+                    _descAutoController?.selection = TextSelection.collapsed(offset: value.length);
+                  },
+                  initialValue: TextEditingValue(text: _descController.text),
+                  fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+                    _descAutoController = controller;
+                    return TextFormField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(
+                        labelText: '描述',
+                        hintText: '例如：晚餐、加油、水費...',
+                        prefixIcon: Icon(Icons.description_outlined),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? '請輸入描述' : null,
+                    );
+                  },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4,
+                        borderRadius: BorderRadius.circular(8),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxHeight: 200, maxWidth: constraints.maxWidth),
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: options.length,
+                            itemBuilder: (context, index) {
+                              final option = options.elementAt(index);
+                              return ListTile(
+                                dense: true,
+                                title: Text(option),
+                                leading: const Icon(Icons.history, size: 18),
+                                onTap: () => onSelected(option),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              }),
               const Gap(16),
               // 金額
               TextFormField(controller: _amountController,
@@ -417,7 +470,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       final existing = widget.existingExpense!;
       existing
         ..date = _selectedDate
-        ..description = _descController.text.trim()
+        ..description = _descText.trim()
         ..amount = amount
         ..category = _selectedCategory
         ..isShared = _isShared
@@ -430,7 +483,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       await ref.read(expenseNotifierProvider.notifier).updateExpense(existing);
     } else {
       await ref.read(expenseNotifierProvider.notifier).addExpense(
-        date: _selectedDate, description: _descController.text.trim(),
+        date: _selectedDate, description: _descText.trim(),
         amount: amount, category: _selectedCategory, isShared: _isShared,
         splitMethod: _splitMethod, payerId: _payerId!,
         payerName: nameMap[_payerId] ?? '', splits: splits,
