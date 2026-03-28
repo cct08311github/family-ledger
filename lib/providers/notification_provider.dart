@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 import '../models/app_notification.dart';
 import '../services/database_service.dart';
+import '../services/local_notification_service.dart';
 
 /// 目前使用者的未讀通知數
 final unreadNotificationCountProvider = StreamProvider<int>((ref) async* {
@@ -67,6 +68,20 @@ class NotificationService {
     await isar.writeTxn(() async {
       await isar.appNotifications.putAll(notifications);
     });
+
+    // 觸發本地推播通知（僅通知當前使用者）
+    final currentUser = await DatabaseService.getCurrentUser();
+    if (currentUser != null) {
+      for (final n in notifications) {
+        if (n.recipientId == currentUser.id) {
+          await LocalNotificationService.show(
+            id: n.isarId,
+            title: n.title,
+            body: n.body,
+          );
+        }
+      }
+    }
   }
 
   /// 標記單則通知為已讀
