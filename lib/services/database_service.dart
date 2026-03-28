@@ -7,6 +7,7 @@ import '../models/balance.dart';
 import '../models/category.dart';
 import '../models/settlement.dart';
 import '../models/activity_log.dart';
+import '../models/app_notification.dart';
 import '../models/enums.dart';
 import 'package:uuid/uuid.dart';
 
@@ -34,6 +35,7 @@ class DatabaseService {
         CategorySchema,
         SettlementSchema,
         ActivityLogSchema,
+        AppNotificationSchema,
       ],
       directory: dir.path,
       name: 'family_ledger',
