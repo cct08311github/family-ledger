@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'auth_service.dart';
 import 'package:isar/isar.dart';
 import '../models/expense.dart';
 import '../models/family_member.dart';
@@ -25,23 +26,20 @@ import 'database_service.dart';
 /// 4. 設定 Firestore Security Rules
 class FirebaseSyncService {
   static FirebaseFirestore get _db => FirebaseFirestore.instance;
-  static FirebaseAuth get _auth => FirebaseAuth.instance;
 
   /// 目前登入的 Firebase 使用者
-  static User? get currentUser => _auth.currentUser;
+  static User? get currentUser => AuthService.currentUser;
 
-  /// 是否已登入
-  static bool get isSignedIn => currentUser != null;
-
-  // ── 匿名登入（最簡方案，可後續升級為 Google Sign-In） ──
+  /// 是否已登入（含匿名）
+  static bool get isSignedIn => AuthService.hasAnyAuth;
 
   static StreamSubscription? _expenseListener;
   static StreamSubscription? _settlementListener;
   static String? _syncedGroupId;
 
+  /// 匿名登入（舊方法，保留向下相容）
   static Future<User?> signInAnonymously() async {
-    final credential = await _auth.signInAnonymously();
-    return credential.user;
+    return await AuthService.signInAnonymously();
   }
 
   /// 首次同步：把本地群組、成員、支出、結算上傳到 Firestore
