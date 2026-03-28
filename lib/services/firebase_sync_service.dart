@@ -280,11 +280,6 @@ class FirebaseSyncService {
 
   // ── 下載同步（Firestore → 本地 Isar） ──
 
-  /// 監聽遠端支出變更，即時同步到本地
-  static Stream<QuerySnapshot<Map<String, dynamic>>> watchExpenses(String groupId) {
-    return _expensesRef(groupId).orderBy('updatedAt', descending: true).snapshots();
-  }
-
   /// 將遠端支出寫入本地 Isar（merge 邏輯：以 updatedAt 較新者為準）
   /// 含防禦性型別檢查，避免惡意或格式錯誤的資料 crash app
   static Future<void> mergeExpenseFromRemote(
