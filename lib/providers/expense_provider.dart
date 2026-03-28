@@ -8,6 +8,7 @@ import '../services/database_service.dart';
 import '../services/image_storage_service.dart';
 import 'balance_provider.dart';
 import 'activity_log_provider.dart';
+import 'notification_provider.dart';
 
 const _uuid = Uuid();
 
@@ -95,6 +96,17 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       entityId: expense.id,
     );
     if (isShared) {
+      await NotificationService.notifySplitExpense(
+        expenseId: expense.id,
+        payerName: payerName,
+        description: description,
+        amount: amount,
+        participants: splits
+            .where((s) => s.isParticipant)
+            .map((s) => (memberId: s.memberId, memberName: s.memberName, shareAmount: s.shareAmount))
+            .toList(),
+        payerId: payerId,
+      );
       await ref.read(balanceNotifierProvider.notifier).recalculate();
     }
   }
