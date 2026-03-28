@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import '../../providers/member_provider.dart';
 import '../../services/app_settings_service.dart';
+import 'category_management_page.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -103,6 +104,18 @@ class SettingsPage extends ConsumerWidget {
               ),
             ]),
           )),
+          const Gap(16),
+          // 類別管理
+          Card(child: Column(children: [
+            ListTile(
+              leading: const Icon(Icons.category_outlined),
+              title: const Text('類別管理'),
+              subtitle: const Text('新增、編輯、排序支出類別'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const CategoryManagementPage())),
+            ),
+          ])),
           const Gap(16),
           // AI 設定
           Card(child: Column(children: [
