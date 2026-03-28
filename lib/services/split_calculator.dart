@@ -45,15 +45,26 @@ class SplitCalculator {
     required Map<String, double> percentages,
     required Map<String, String> memberNames,
   }) {
-    return percentages.entries.map((entry) {
-      final memberId = entry.key;
-      final pct = entry.value;
-      final share = double.parse((amount * pct / 100).toStringAsFixed(0));
+    final entries = percentages.entries.toList();
+    final shares = entries.map((e) {
+      return double.parse((amount * e.value / 100).toStringAsFixed(0));
+    }).toList();
+
+    // 處理四捨五入尾數：最後一人吸收差額
+    final sumShares = shares.fold(0.0, (a, b) => a + b);
+    final remainder = amount - sumShares;
+    if (shares.isNotEmpty) {
+      shares[shares.length - 1] += remainder;
+    }
+
+    return entries.asMap().entries.map((entry) {
+      final i = entry.key;
+      final memberId = entry.value.key;
 
       return SplitDetail()
         ..memberId = memberId
         ..memberName = memberNames[memberId] ?? ''
-        ..shareAmount = share
+        ..shareAmount = shares[i]
         ..paidAmount = (memberId == payerId) ? amount : 0
         ..isParticipant = true;
     }).toList();

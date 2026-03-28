@@ -72,15 +72,23 @@ class _SplitOverviewPageState extends ConsumerState<SplitOverviewPage> {
                 onPressed: () async {
                   final amount = double.tryParse(amountController.text);
                   if (amount == null || amount <= 0) return;
-                  await ref.read(settlementNotifierProvider.notifier).addSettlement(
-                    fromMemberId: debt['from'] as String,
-                    fromMemberName: debt['fromName'] as String,
-                    toMemberId: debt['to'] as String,
-                    toMemberName: debt['toName'] as String,
-                    amount: amount,
-                    note: noteController.text.isEmpty ? null : noteController.text,
-                  );
-                  if (ctx.mounted) Navigator.pop(ctx);
+                  try {
+                    await ref.read(settlementNotifierProvider.notifier).addSettlement(
+                      fromMemberId: debt['from'] as String,
+                      fromMemberName: debt['fromName'] as String,
+                      toMemberId: debt['to'] as String,
+                      toMemberName: debt['toName'] as String,
+                      amount: amount,
+                      note: noteController.text.isEmpty ? null : noteController.text,
+                    );
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  } catch (e) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        SnackBar(content: Text('付款記錄失敗：$e'), behavior: SnackBarBehavior.floating),
+                      );
+                    }
+                  }
                 },
                 icon: const Icon(Icons.check),
                 label: const Text('確認付款'),
@@ -89,7 +97,10 @@ class _SplitOverviewPageState extends ConsumerState<SplitOverviewPage> {
           ]),
         );
       },
-    );
+    ).whenComplete(() {
+      amountController.dispose();
+      noteController.dispose();
+    });
   }
 
   @override
