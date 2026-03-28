@@ -93,6 +93,15 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
                           label: '編輯',
                           borderRadius: BorderRadius.circular(12),
                         ),
+                        SlidableAction(
+                          onPressed: (_) => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => ExpenseFormPage(duplicateFrom: e))),
+                          backgroundColor: theme.colorScheme.tertiary,
+                          foregroundColor: theme.colorScheme.onTertiary,
+                          icon: Icons.copy,
+                          label: '複製',
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ]),
                       endActionPane: ActionPane(motion: const DrawerMotion(), children: [
                         SlidableAction(
