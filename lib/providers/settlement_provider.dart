@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../models/settlement.dart';
 import '../services/database_service.dart';
 import 'balance_provider.dart';
+import 'activity_log_provider.dart';
 
 const _uuid = Uuid();
 
@@ -45,6 +46,12 @@ class SettlementNotifier extends AsyncNotifier<void> {
     await isar.writeTxn(() async {
       await isar.settlements.put(settlement);
     });
+    await ActivityLogger.log(
+      action: 'settlement_add',
+      actorName: fromMemberName, actorId: fromMemberId,
+      description: '$fromMemberName 付款給 $toMemberName NT\$ ${amount.toStringAsFixed(0)}',
+      entityId: settlement.id,
+    );
     await ref.read(balanceNotifierProvider.notifier).recalculate();
   }
 
@@ -53,6 +60,12 @@ class SettlementNotifier extends AsyncNotifier<void> {
     await isar.writeTxn(() async {
       await isar.settlements.delete(settlement.isarId);
     });
+    await ActivityLogger.log(
+      action: 'settlement_delete',
+      actorName: settlement.fromMemberName, actorId: settlement.fromMemberId,
+      description: '刪除付款記錄：${settlement.fromMemberName} → ${settlement.toMemberName} NT\$ ${settlement.amount.toStringAsFixed(0)}',
+      entityId: settlement.id,
+    );
     await ref.read(balanceNotifierProvider.notifier).recalculate();
   }
 }
