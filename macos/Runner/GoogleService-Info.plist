@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>137558877215-85ak3t2lbne5iuad4aoop4fadn2m4p7u.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.137558877215-85ak3t2lbne5iuad4aoop4fadn2m4p7u</string>
 	<key>API_KEY</key>
 	<string>AIzaSyD9FyDSM4-acovBVfMvf_2kLW1IaJcVsMQ</string>
 	<key>GCM_SENDER_ID</key>
@@ -9,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.familyledger.familyShareLedger</string>
+	<string>com.familyledger.familyLedger</string>
 	<key>PROJECT_ID</key>
 	<string>family-ledger-784ed</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:137558877215:ios:67e1971734b293f996a12a</string>
+	<string>1:137558877215:ios:7101807b49be145b96a12a</string>
 </dict>
 </plist>
