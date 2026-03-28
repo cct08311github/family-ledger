@@ -10,6 +10,7 @@ import 'balance_provider.dart';
 import 'activity_log_provider.dart';
 import 'notification_provider.dart';
 import '../services/firebase_sync_service.dart';
+import '../services/receipt_storage_service.dart';
 
 const _uuid = Uuid();
 
@@ -100,6 +101,19 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       description: '$payerName 新增支出「$description」NT\$ ${amount.toStringAsFixed(0)}',
       entityId: expense.id,
     );
+    // 收據照片上傳到 Firebase Storage（本機路徑→URL）
+    if (FirebaseSyncService.isSignedIn && groupId != null && receiptPaths.isNotEmpty) {
+      final urls = await ReceiptStorageService.uploadAll(
+        localPaths: receiptPaths,
+        groupId: groupId,
+        expenseId: expense.id,
+      );
+      if (urls.any((u) => u.startsWith('http'))) {
+        expense.receiptPaths = urls;
+        expense.receiptPath = urls.first;
+        await isar.writeTxn(() async { await isar.expenses.put(expense); });
+      }
+    }
     // Firebase 同步（忽略失敗，本地優先）
     if (FirebaseSyncService.isSignedIn && groupId != null) {
       FirebaseSyncService.syncExpenseUp(groupId, expense).catchError((_) {});
@@ -132,6 +146,19 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       description: '${expense.payerName} 編輯支出「${expense.description}」',
       entityId: expense.id,
     );
+    // 上傳新增的本機照片
+    if (FirebaseSyncService.isSignedIn && expense.receiptPaths.isNotEmpty) {
+      final urls = await ReceiptStorageService.uploadAll(
+        localPaths: expense.receiptPaths,
+        groupId: expense.groupId,
+        expenseId: expense.id,
+      );
+      if (urls.any((u) => u.startsWith('http'))) {
+        expense.receiptPaths = urls;
+        expense.receiptPath = urls.isNotEmpty ? urls.first : null;
+        await isar.writeTxn(() async { await isar.expenses.put(expense); });
+      }
+    }
     if (FirebaseSyncService.isSignedIn) {
       final gid = expense.groupId;
       FirebaseSyncService.syncExpenseUp(gid, expense).catchError((_) {});
@@ -144,12 +171,23 @@ class ExpenseNotifier extends AsyncNotifier<void> {
   Future<void> deleteExpense(Expense expense) async {
     final isar = await DatabaseService.instance;
     final wasShared = expense.isShared;
-    final receiptPath = expense.receiptPath;
     await isar.writeTxn(() async {
       await isar.expenses.delete(expense.isarId);
     });
-    if (receiptPath != null) {
-      await ImageStorageService.deleteReceipt(receiptPath);
+    // 刪除本機收據
+    for (final path in expense.receiptPaths) {
+      if (!path.startsWith('http')) {
+        await ImageStorageService.deleteReceipt(path);
+      }
+    }
+    if (expense.receiptPath != null && !expense.receiptPath!.startsWith('http')) {
+      await ImageStorageService.deleteReceipt(expense.receiptPath!);
+    }
+    // 刪除 Firebase Storage 收據
+    if (FirebaseSyncService.isSignedIn) {
+      ReceiptStorageService.deleteAll(
+        groupId: expense.groupId, expenseId: expense.id,
+      ).catchError((_) {});
     }
     await ActivityLogger.log(
       action: 'expense_delete',
