@@ -26,6 +26,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>拍攝收據或發票照片以附加到支出記錄</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>語音記帳需要使用麥克風來錄製語音</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>從相簿選擇收據或發票照片以附加到支出記錄</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>語音記帳需要語音辨識來將語音轉為文字</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -47,14 +55,6 @@
 			</array>
 		</dict>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>拍攝收據或發票照片以附加到支出記錄</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>從相簿選擇收據或發票照片以附加到支出記錄</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>語音記帳需要語音辨識來將語音轉為文字</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>語音記帳需要使用麥克風來錄製語音</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
