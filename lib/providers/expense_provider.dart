@@ -63,6 +63,7 @@ class ExpenseNotifier extends AsyncNotifier<void> {
     required String payerName,
     required List<SplitDetail> splits,
     String? receiptPath,
+    List<String> receiptPaths = const [],
     PaymentMethod paymentMethod = PaymentMethod.cash,
     String? note,
     required String createdBy,
@@ -85,6 +86,7 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       ..splits = splits
       ..paymentMethod = paymentMethod
       ..receiptPath = receiptPath
+      ..receiptPaths = receiptPaths
       ..note = note
       ..createdBy = createdBy
       ..createdAt = now
