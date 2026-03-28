@@ -23,6 +23,7 @@ class DefaultFirebaseOptions {
     projectId: 'family-ledger-784ed',
     storageBucket: 'family-ledger-784ed.firebasestorage.app',
     iosBundleId: 'com.familyledger.familyLedger',
+    iosClientId: '137558877215-85ak3t2lbne5iuad4aoop4fadn2m4p7u.apps.googleusercontent.com',
   );
 
   // macOS 共用 iOS 的配置（同一個 Apple app）
@@ -33,5 +34,6 @@ class DefaultFirebaseOptions {
     projectId: 'family-ledger-784ed',
     storageBucket: 'family-ledger-784ed.firebasestorage.app',
     iosBundleId: 'com.familyledger.familyLedger',
+    iosClientId: '137558877215-85ak3t2lbne5iuad4aoop4fadn2m4p7u.apps.googleusercontent.com',
   );
 }

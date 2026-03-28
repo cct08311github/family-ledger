@@ -42,7 +42,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<!-- TODO: 從 GoogleService-Info.plist 的 REVERSED_CLIENT_ID 取得 -->
-				<string>com.googleusercontent.apps.137558877215-PLACEHOLDER</string>
+				<string>com.googleusercontent.apps.137558877215-85ak3t2lbne5iuad4aoop4fadn2m4p7u</string>
 			</array>
 		</dict>
 	</array>
