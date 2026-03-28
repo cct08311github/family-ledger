@@ -25,10 +25,14 @@ void main() async {
 
   // 啟用 App Check 防止 API 濫用
   // Debug/本機 build 使用 debug provider，App Store release 才用 deviceCheck
-  await FirebaseAppCheck.instance.activate(
-    appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
-    androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-  );
+  try {
+    await FirebaseAppCheck.instance.activate(
+      appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+      androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+    );
+  } catch (_) {
+    // App Check 啟用失敗不阻擋 app 啟動
+  }
 
   // 已登入 Google → 自動同步
   try {
