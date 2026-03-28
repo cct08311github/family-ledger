@@ -42,6 +42,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   Map<String, double> _customAmounts = {};
   Map<String, TextEditingController> _pctCtrl = {};
   Map<String, TextEditingController> _customCtrl = {};
+  PaymentMethod _paymentMethod = PaymentMethod.cash;
   String? _receiptPath;
   TextEditingController? _descAutoController;
 
@@ -62,6 +63,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       _isShared = e.isShared;
       _splitMethod = e.splitMethod;
       _payerId = e.payerId;
+      _paymentMethod = e.paymentMethod;
       _receiptPath = isDuplicate ? null : e.receiptPath;
       _participantIds = e.splits.where((s) => s.isParticipant).map((s) => s.memberId).toSet();
       if (_splitMethod == SplitMethod.percentage) {
@@ -312,6 +314,19 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                 items: (catList.isNotEmpty ? catList.map((c) => c.name).toList()
                     : ['餐飲', '交通', '購物', '其他']).map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                 onChanged: (v) => setState(() => _selectedCategory = v!),
+              ),
+              const Gap(16),
+              // 付款方式
+              Text('付款方式', style: theme.textTheme.labelLarge),
+              const Gap(8),
+              SegmentedButton<PaymentMethod>(
+                segments: const [
+                  ButtonSegment(value: PaymentMethod.cash, label: Text('現金'), icon: Icon(Icons.money)),
+                  ButtonSegment(value: PaymentMethod.creditCard, label: Text('信用卡'), icon: Icon(Icons.credit_card)),
+                  ButtonSegment(value: PaymentMethod.transfer, label: Text('轉帳'), icon: Icon(Icons.swap_horiz)),
+                ],
+                selected: {_paymentMethod},
+                onSelectionChanged: (v) => setState(() => _paymentMethod = v.first),
               ),
               const Gap(16),
               // 支出類型
@@ -579,6 +594,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
         ..payerId = _payerId!
         ..payerName = nameMap[_payerId] ?? ''
         ..splits = splits
+        ..paymentMethod = _paymentMethod
         ..receiptPath = _receiptPath
         ..note = _noteController.text.trim().isEmpty ? null : _noteController.text.trim();
       await ref.read(expenseNotifierProvider.notifier).updateExpense(existing);
@@ -588,7 +604,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
         amount: amount, category: _selectedCategory, isShared: _isShared,
         splitMethod: _splitMethod, payerId: _payerId!,
         payerName: nameMap[_payerId] ?? '', splits: splits,
-        receiptPath: _receiptPath,
+        paymentMethod: _paymentMethod, receiptPath: _receiptPath,
         note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
         createdBy: currentUser?.id ?? _payerId!,
       );

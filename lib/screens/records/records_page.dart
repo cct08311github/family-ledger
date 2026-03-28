@@ -5,6 +5,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import 'package:gap/gap.dart';
 import '../../models/expense.dart';
+import '../../models/enums.dart';
 import '../../providers/expense_provider.dart';
 import '../../utils/formatters.dart';
 import '../expense/expense_form_page.dart';
@@ -128,7 +129,7 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
                           ),
                           title: Text(e.description),
                           subtitle: Row(children: [
-                            Expanded(child: Text('${e.category} · ${e.payerName}付${e.isShared ? ' · 共同' : ''}')),
+                            Expanded(child: Text('${e.category} · ${e.payerName}付 · ${_paymentLabel(e.paymentMethod)}${e.isShared ? ' · 共同' : ''}')),
                             if (e.receiptPath != null) GestureDetector(
                               onTap: () => _viewReceipt(e.receiptPath!),
                               child: Icon(Icons.receipt_long, size: 16,
@@ -148,6 +149,12 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
       ),
     );
   }
+
+  String _paymentLabel(PaymentMethod method) => switch (method) {
+    PaymentMethod.cash => '現金',
+    PaymentMethod.creditCard => '信用卡',
+    PaymentMethod.transfer => '轉帳',
+  };
 
   void _viewReceipt(String path) {
     Navigator.push(context, MaterialPageRoute(
