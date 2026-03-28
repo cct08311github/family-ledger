@@ -1,0 +1,56 @@
+name: family_ledger
+description: 全家人共享記帳．自動拆帳．一目了然誰欠誰
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 狀態管理
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # 本地資料庫（第一階段）
+  isar: ^3.1.0+1
+  isar_flutter_libs: ^3.1.0+1
+  path_provider: ^2.1.2
+
+  # UI 相關
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0
+  fl_chart: ^0.68.0
+  flutter_slidable: ^3.1.0
+  intl: ^0.19.0
+  gap: ^3.0.1
+
+  # 圖片 / 發票拍照
+  image_picker: ^1.0.7
+  cached_network_image: ^3.3.1
+
+  # 匯出
+  pdf: ^3.10.8
+  printing: ^5.12.0
+  csv: ^6.0.0
+  share_plus: ^9.0.0
+
+  # 工具
+  uuid: ^4.3.3
+  collection: ^1.18.0
+  flutter_local_notifications: ^17.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  isar_generator: ^3.1.0+1
+  build_runner: ^2.4.8
+  riverpod_generator: ^2.4.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
