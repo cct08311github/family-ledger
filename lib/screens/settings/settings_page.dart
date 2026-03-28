@@ -59,11 +59,11 @@ class SettingsPage extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Column(children: [
                         Icon(Icons.person_add, size: 48,
-                            color: theme.colorScheme.primary.withOpacity(0.3)),
+                            color: theme.colorScheme.primary.withValues(alpha:0.3)),
                         const Gap(8),
                         Text('還沒有成員，請點右上角新增',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withOpacity(0.6))),
+                                color: theme.colorScheme.onSurface.withValues(alpha:0.6))),
                       ]),
                     );
                   }
@@ -88,12 +88,12 @@ class SettingsPage extends ConsumerWidget {
                         ),
                       IconButton(
                         icon: Icon(Icons.edit_outlined, size: 20,
-                            color: theme.colorScheme.onSurface.withOpacity(0.5)),
+                            color: theme.colorScheme.onSurface.withValues(alpha:0.5)),
                         onPressed: () => _showEditMemberDialog(context, ref, m.id, m.name),
                       ),
                       IconButton(
                         icon: Icon(Icons.delete_outline, size: 20,
-                            color: theme.colorScheme.error.withOpacity(0.5)),
+                            color: theme.colorScheme.error.withValues(alpha:0.5)),
                         onPressed: () => _confirmDeleteMember(context, ref, m.id, m.name),
                       ),
                     ]),

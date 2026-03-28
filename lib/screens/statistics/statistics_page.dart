@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:gap/gap.dart';
-import '../../models/expense.dart';
+import '../../utils/formatters.dart';
 import '../../models/enums.dart';
 import '../../providers/expense_provider.dart';
-import '../../providers/member_provider.dart';
+
 
 class StatisticsPage extends ConsumerWidget {
   const StatisticsPage({super.key});
@@ -15,7 +15,6 @@ class StatisticsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final monthlyExpenses = ref.watch(monthlyExpensesProvider);
-    final members = ref.watch(membersProvider);
     final monthLabel = DateFormat('yyyy年 M月', 'zh_TW').format(DateTime.now());
 
     return Scaffold(
@@ -27,7 +26,7 @@ class StatisticsPage extends ConsumerWidget {
           if (expenses.isEmpty) {
             return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.bar_chart_outlined, size: 64,
-                  color: theme.colorScheme.primary.withOpacity(0.3)),
+                  color: theme.colorScheme.primary.withValues(alpha:0.3)),
               const Gap(16),
               Text('本月還沒有記錄', style: theme.textTheme.titleMedium),
             ]));
@@ -99,7 +98,7 @@ class StatisticsPage extends ConsumerWidget {
                     const Gap(4),
                     Text('$icon ${cat.key}', style: theme.textTheme.bodySmall),
                     const Gap(4),
-                    Text('NT\$ ${NumberFormat('#,##0').format(cat.value)}',
+                    Text(Formatters.currency(cat.value),
                         style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
                   ]);
                 }).toList()),
@@ -118,7 +117,7 @@ class StatisticsPage extends ConsumerWidget {
                       Row(children: [
                         Text(e.key, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
                         const Spacer(),
-                        Text('NT\$ ${NumberFormat('#,##0').format(e.value)}',
+                        Text(Formatters.currency(e.value),
                             style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
                       ]),
                       const Gap(4),
@@ -153,12 +152,12 @@ class StatisticsPage extends ConsumerWidget {
                     const Gap(8),
                     Text('$icon ${cat.key}', style: theme.textTheme.bodyMedium),
                     const Spacer(),
-                    Text('NT\$ ${NumberFormat('#,##0').format(cat.value)}',
+                    Text(Formatters.currency(cat.value),
                         style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
                     const Gap(8),
                     Text('${(cat.value / total * 100).toStringAsFixed(0)}%',
                         style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                            color: theme.colorScheme.onSurface.withValues(alpha:0.5))),
                   ]));
                 }),
               ],
