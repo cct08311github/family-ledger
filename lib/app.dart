@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'screens/home/home_screen.dart';
-import 'screens/split/split_overview_screen.dart';
-import 'screens/records/records_screen.dart';
-import 'screens/statistics/statistics_screen.dart';
-import 'screens/settings/settings_screen.dart';
-import 'screens/expense/expense_form_screen.dart';
+import 'screens/home/home_page.dart';
+import 'screens/split/split_overview_page.dart';
+import 'screens/records/records_page.dart';
+import 'screens/statistics/statistics_page.dart';
+import 'screens/settings/settings_page.dart';
+import 'screens/expense/expense_form_page.dart';
 
 /// 家計本 App 主體
 class FamilyLedgerApp extends StatelessWidget {
@@ -83,12 +83,12 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = const [
-    HomeScreen(),
-    SplitOverviewScreen(),
-    RecordsScreen(),
-    StatisticsScreen(),
-    SettingsScreen(),
+  final List<Widget> _pages = [
+    const HomePage(),
+    const SplitOverviewPage(),
+    RecordsPage(),
+    const StatisticsPage(),
+    const SettingsPage(),
   ];
 
   @override
@@ -99,7 +99,7 @@ class _MainShellState extends State<MainShell> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const ExpenseFormScreen()),
+            MaterialPageRoute(builder: (_) => ExpenseFormPage()),
           );
         },
         icon: const Icon(Icons.add),

@@ -1,4 +1,5 @@
 import 'package:isar/isar.dart';
+import 'enums.dart';
 import 'split_detail.dart';
 
 part 'expense.g.dart';
@@ -64,9 +65,3 @@ class Expense {
   late DateTime updatedAt;
 }
 
-/// 分帳方式
-enum SplitMethod {
-  equal,      // 均分
-  percentage, // 比例分
-  custom,     // 自訂金額
-}

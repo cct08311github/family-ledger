@@ -1,4 +1,5 @@
 import 'package:isar/isar.dart';
+import 'enums.dart';
 
 part 'family_member.g.dart';
 
@@ -35,8 +36,3 @@ class FamilyMember {
   late DateTime createdAt;
 }
 
-/// 成員角色
-enum MemberRole {
-  admin,
-  member,
-}

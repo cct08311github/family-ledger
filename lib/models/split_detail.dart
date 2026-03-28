@@ -1,7 +1,5 @@
 import 'package:isar/isar.dart';
 
-part 'split_detail.g.dart';
-
 /// 拆帳明細（嵌入在 Expense 中）
 @embedded
 class SplitDetail {
