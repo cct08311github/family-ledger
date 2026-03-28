@@ -17,6 +17,7 @@ import '../../services/expense_parser_service.dart';
 import '../../services/app_settings_service.dart';
 import '../../widgets/voice_input_button.dart';
 import '../../widgets/calculator_sheet.dart';
+import '../../services/local_expense_parser.dart';
 
 class ExpenseFormPage extends ConsumerStatefulWidget {
   final Expense? existingExpense;
@@ -99,59 +100,66 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     final categories = ref.read(categoriesProvider).valueOrNull ?? [];
     final categoryNames = categories.map((c) => c.name).toList();
 
-    // Check API key
+    // 有 Gemini API Key → AI 解析，沒有 → 本地智能規則解析
     final apiKey = await AppSettingsService.geminiApiKey;
-    if (apiKey == null || apiKey.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('請先到設定頁面設定 Gemini API Key'), behavior: SnackBarBehavior.floating),
-        );
-      }
-      return;
-    }
+    final useAI = apiKey != null && apiKey.isNotEmpty;
 
-    ExpenseParserService.configure(apiKey: apiKey);
     setState(() => _isParsingVoice = true);
 
     try {
-      final result = await ExpenseParserService.parse(
-        text,
-        availableCategories: categoryNames,
-      );
+      Map<String, dynamic> result;
+
+      if (useAI) {
+        ExpenseParserService.configure(apiKey: apiKey);
+        try {
+          result = await ExpenseParserService.parse(text, availableCategories: categoryNames);
+        } catch (_) {
+          // AI 失敗時 fallback 到本地解析
+          result = LocalExpenseParser.parse(text, availableCategories: categoryNames);
+        }
+      } else {
+        result = LocalExpenseParser.parse(text, availableCategories: categoryNames);
+      }
 
       if (!mounted) return;
 
-      // Fill form fields
-      _descAutoController?.text = result['description'] as String;
-      _amountController.text = (result['amount'] as double).toStringAsFixed(0);
-
-      final cat = result['category'] as String;
-      if (categoryNames.contains(cat)) {
-        setState(() => _selectedCategory = cat);
-      }
-
-      final dateStr = result['date'] as String?;
-      if (dateStr != null) {
-        final parsed = DateTime.tryParse(dateStr);
-        if (parsed != null) setState(() => _selectedDate = parsed);
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('已解析：${result['description']}  NT\$ ${(result['amount'] as double).toStringAsFixed(0)}'),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      _applyParseResult(result, categoryNames, useAI ? 'AI' : '本地');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('AI 解析失敗：$e'), behavior: SnackBarBehavior.floating),
+          SnackBar(content: Text('解析失敗：$e'), behavior: SnackBarBehavior.floating),
         );
       }
     } finally {
       if (mounted) setState(() => _isParsingVoice = false);
     }
+  }
+
+  void _applyParseResult(Map<String, dynamic> result, List<String> categoryNames, String engine) {
+    _descAutoController?.text = result['description'] as String;
+    final amount = (result['amount'] is num) ? (result['amount'] as num).toDouble() : 0.0;
+    if (amount > 0) {
+      _amountController.text = amount.toStringAsFixed(0);
+    }
+
+    final cat = result['category'] as String;
+    if (categoryNames.contains(cat)) {
+      setState(() => _selectedCategory = cat);
+    }
+
+    final dateStr = result['date'] as String?;
+    if (dateStr != null) {
+      final parsed = DateTime.tryParse(dateStr);
+      if (parsed != null) setState(() => _selectedDate = parsed);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$engine 解析：${result['description']}${amount > 0 ? '  NT\$ ${amount.toStringAsFixed(0)}' : ''}'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
