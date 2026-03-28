@@ -8,6 +8,8 @@ import '../../providers/member_provider.dart';
 import '../../providers/balance_provider.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/member_avatar.dart';
+import '../../providers/notification_provider.dart';
+import '../notification/notification_page.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -26,6 +28,7 @@ class HomePage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('家計本'),
         actions: [
+          _NotificationBell(),
           currentUser.when(
             data: (user) => user != null
                 ? TextButton.icon(
@@ -224,6 +227,24 @@ class _DebtOverviewCard extends StatelessWidget {
                   ]),
                 )),
         ]),
+      ),
+    );
+  }
+}
+
+class _NotificationBell extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unreadCount = ref.watch(unreadNotificationCountProvider).valueOrNull ?? 0;
+    return IconButton(
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const NotificationPage()),
+      ),
+      icon: Badge(
+        isLabelVisible: unreadCount > 0,
+        label: Text('$unreadCount'),
+        child: const Icon(Icons.notifications_outlined),
       ),
     );
   }
