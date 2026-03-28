@@ -11,6 +11,13 @@ enum SplitMethod {
   custom,     // 自訂金額
 }
 
+/// 付款方式
+enum PaymentMethod {
+  cash,       // 現金
+  creditCard, // 信用卡
+  transfer,   // 轉帳
+}
+
 /// 成員角色
 enum MemberRole {
   admin,

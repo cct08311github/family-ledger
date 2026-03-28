@@ -49,6 +49,10 @@ class Expense {
   /// 拆帳明細（嵌入式）
   late List<SplitDetail> splits;
 
+  /// 付款方式：cash / creditCard / transfer
+  @Enumerated(EnumType.name)
+  PaymentMethod paymentMethod = PaymentMethod.cash;
+
   /// 發票照片本地路徑
   String? receiptPath;
 

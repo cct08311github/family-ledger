@@ -62,6 +62,7 @@ class ExpenseNotifier extends AsyncNotifier<void> {
     required String payerName,
     required List<SplitDetail> splits,
     String? receiptPath,
+    PaymentMethod paymentMethod = PaymentMethod.cash,
     String? note,
     required String createdBy,
   }) async {
@@ -81,6 +82,7 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       ..payerId = payerId
       ..payerName = payerName
       ..splits = splits
+      ..paymentMethod = paymentMethod
       ..receiptPath = receiptPath
       ..note = note
       ..createdBy = createdBy
