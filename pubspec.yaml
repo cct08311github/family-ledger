@@ -37,6 +37,10 @@ dependencies:
   csv: ^6.0.0
   share_plus: ^9.0.0
 
+  # 語音 / AI
+  speech_to_text: ^6.6.0
+  http: ^1.2.1
+
   # 工具
   uuid: ^4.3.3
   collection: ^1.18.0
