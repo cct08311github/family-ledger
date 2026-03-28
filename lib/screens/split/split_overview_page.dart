@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
+import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../models/expense.dart';
 import '../../providers/balance_provider.dart';
+import '../../providers/expense_provider.dart';
 import '../../providers/member_provider.dart';
 import '../../providers/settlement_provider.dart';
 import '../../utils/formatters.dart';
@@ -15,6 +19,81 @@ class SplitOverviewPage extends ConsumerStatefulWidget {
 }
 
 class _SplitOverviewPageState extends ConsumerState<SplitOverviewPage> {
+  Future<void> _shareDebtReport(WidgetRef ref) async {
+    final debts = ref.read(simplifiedDebtsProvider).valueOrNull ?? [];
+    final netBalances = ref.read(memberNetBalanceProvider).valueOrNull ?? {};
+    final members = ref.read(membersProvider).valueOrNull ?? [];
+    final allExpenses = ref.read(allExpensesProvider).valueOrNull ?? [];
+    final nameMap = {for (final m in members) m.id: m.name};
+
+    // 篩選共同支出（本月）
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final sharedExpenses = allExpenses
+        .where((e) => e.isShared && !e.date.isBefore(startOfMonth))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    final buf = StringBuffer();
+    final monthLabel = DateFormat('yyyy年M月', 'zh_TW').format(now);
+
+    // 標題
+    buf.writeln('📊 $monthLabel 家庭帳本結算報告');
+    buf.writeln('${'─' * 20}');
+    buf.writeln();
+
+    // 差額摘要
+    if (debts.isEmpty) {
+      buf.writeln('✅ 所有人帳目已結清！');
+    } else {
+      buf.writeln('💰 需要轉帳：');
+      for (final d in debts) {
+        buf.writeln('  ${d['fromName']} → ${d['toName']}：NT\$ ${(d['amount'] as num).toStringAsFixed(0)}');
+      }
+    }
+    buf.writeln();
+
+    // 每人淨餘額
+    if (netBalances.isNotEmpty) {
+      buf.writeln('📋 各人餘額：');
+      final sorted = netBalances.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      for (final e in sorted) {
+        final name = nameMap[e.key] ?? e.key;
+        final sign = e.value >= 0 ? '+' : '';
+        buf.writeln('  $name：$sign${e.value.toStringAsFixed(0)}');
+      }
+      buf.writeln();
+    }
+
+    // 費用明細
+    if (sharedExpenses.isNotEmpty) {
+      buf.writeln('📝 共同支出明細（$monthLabel）：');
+      buf.writeln('${'─' * 20}');
+      for (final e in sharedExpenses) {
+        final dateStr = DateFormat('MM/dd').format(e.date);
+        buf.writeln('$dateStr ${e.description}');
+        buf.writeln('  金額：NT\$ ${e.amount.toStringAsFixed(0)}（${e.payerName}先付）');
+        // 各人分攤
+        final participants = e.splits.where((s) => s.isParticipant).toList();
+        if (participants.length > 1) {
+          final shares = participants
+              .map((s) => '${s.memberName} NT\$ ${s.shareAmount.toStringAsFixed(0)}')
+              .join('、');
+          buf.writeln('  分攤：$shares');
+        }
+        buf.writeln();
+      }
+      final total = sharedExpenses.fold<double>(0, (s, e) => s + e.amount);
+      buf.writeln('共 ${sharedExpenses.length} 筆，合計 NT\$ ${total.toStringAsFixed(0)}');
+    }
+
+    buf.writeln();
+    buf.writeln('— 由「家計本」App 產生');
+
+    await SharePlus.instance.share(ShareParams(text: buf.toString()));
+  }
+
   void _showSettlementDialog(Map<String, dynamic> debt) {
     final amountController = TextEditingController(
       text: (debt['amount'] as num).toStringAsFixed(0),
@@ -111,7 +190,16 @@ class _SplitOverviewPageState extends ConsumerState<SplitOverviewPage> {
     final members = ref.watch(membersProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('拆帳總覽')),
+      appBar: AppBar(
+        title: const Text('拆帳總覽'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            tooltip: '分享差額明細',
+            onPressed: () => _shareDebtReport(ref),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
