@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/family_group.dart';
@@ -22,24 +23,40 @@ class DatabaseService {
     return await _init();
   }
 
-  /// 初始化資料庫
+  static const _schemas = [
+    FamilyGroupSchema,
+    FamilyMemberSchema,
+    ExpenseSchema,
+    BalanceSchema,
+    CategorySchema,
+    SettlementSchema,
+    ActivityLogSchema,
+    AppNotificationSchema,
+  ];
+
+  /// 初始化資料庫（schema 不相容時自動重建）
   static Future<Isar> _init() async {
     final dir = await getApplicationDocumentsDirectory();
 
-    _isar = await Isar.open(
-      [
-        FamilyGroupSchema,
-        FamilyMemberSchema,
-        ExpenseSchema,
-        BalanceSchema,
-        CategorySchema,
-        SettlementSchema,
-        ActivityLogSchema,
-        AppNotificationSchema,
-      ],
-      directory: dir.path,
-      name: 'family_ledger',
-    );
+    try {
+      _isar = await Isar.open(
+        _schemas,
+        directory: dir.path,
+        name: 'family_ledger',
+      );
+    } catch (e) {
+      // Schema 不相容 → 刪除舊 DB 重建（開發階段可接受）
+      await Isar.getInstance('family_ledger')?.close();
+      final dbFile = File('${dir.path}/family_ledger.isar');
+      if (await dbFile.exists()) await dbFile.delete();
+      final lockFile = File('${dir.path}/family_ledger.isar.lock');
+      if (await lockFile.exists()) await lockFile.delete();
+      _isar = await Isar.open(
+        _schemas,
+        directory: dir.path,
+        name: 'family_ledger',
+      );
+    }
 
     // 首次啟動：建立預設群組和類別
     await _seedDefaultData();
