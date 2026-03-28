@@ -5,6 +5,7 @@ import '../models/settlement.dart';
 import '../services/database_service.dart';
 import 'balance_provider.dart';
 import 'activity_log_provider.dart';
+import '../services/firebase_sync_service.dart';
 
 const _uuid = Uuid();
 
@@ -52,6 +53,9 @@ class SettlementNotifier extends AsyncNotifier<void> {
       description: '$fromMemberName 付款給 $toMemberName NT\$ ${amount.toStringAsFixed(0)}',
       entityId: settlement.id,
     );
+    if (FirebaseSyncService.isSignedIn) {
+      FirebaseSyncService.syncSettlementUp(groupId, settlement).catchError((_) {});
+    }
     await ref.read(balanceNotifierProvider.notifier).recalculate();
   }
 
@@ -66,6 +70,9 @@ class SettlementNotifier extends AsyncNotifier<void> {
       description: '刪除付款記錄：${settlement.fromMemberName} → ${settlement.toMemberName} NT\$ ${settlement.amount.toStringAsFixed(0)}',
       entityId: settlement.id,
     );
+    if (FirebaseSyncService.isSignedIn) {
+      FirebaseSyncService.deleteSettlementRemote(settlement.groupId, settlement.id).catchError((_) {});
+    }
     await ref.read(balanceNotifierProvider.notifier).recalculate();
   }
 }
