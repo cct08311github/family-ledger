@@ -85,14 +85,23 @@ class ExpenseParserService {
 
     final parsed = jsonDecode(cleaned) as Map<String, dynamic>;
 
-    // Validate and sanitize
+    // Validate and sanitize（#58 M1: 長度限制 + 範圍驗證）
+    var desc = (parsed['description'] as String?)?.trim() ?? text;
+    if (desc.length > 200) desc = desc.substring(0, 200);
+
+    var amount = (parsed['amount'] is num) ? (parsed['amount'] as num).toDouble() : 0.0;
+    if (amount < 0 || amount >= 100000000) amount = 0.0;
+
+    final dateStr = parsed['date'] as String? ?? today;
+    final validDate = RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateStr) ? dateStr : today;
+
     return {
-      'description': (parsed['description'] as String?)?.trim() ?? text,
-      'amount': (parsed['amount'] is num) ? (parsed['amount'] as num).toDouble() : 0.0,
+      'description': desc,
+      'amount': amount,
       'category': availableCategories.contains(parsed['category'])
           ? parsed['category']
           : availableCategories.first,
-      'date': parsed['date'] as String? ?? today,
+      'date': validDate,
     };
   }
 }
