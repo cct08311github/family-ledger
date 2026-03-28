@@ -130,10 +130,15 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
                           title: Text(e.description),
                           subtitle: Row(children: [
                             Expanded(child: Text('${e.category} · ${e.payerName}付 · ${_paymentLabel(e.paymentMethod)}${e.isShared ? ' · 共同' : ''}')),
-                            if (e.receiptPath != null) GestureDetector(
-                              onTap: () => _viewReceipt(e.receiptPath!),
-                              child: Icon(Icons.receipt_long, size: 16,
-                                  color: theme.colorScheme.primary.withValues(alpha: 0.7)),
+                            if (e.receiptPaths.isNotEmpty || e.receiptPath != null) GestureDetector(
+                              onTap: () => _viewReceipts(e.receiptPaths.isNotEmpty ? e.receiptPaths : [e.receiptPath!]),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                Icon(Icons.receipt_long, size: 16,
+                                    color: theme.colorScheme.primary.withValues(alpha: 0.7)),
+                                if (e.receiptPaths.length > 1)
+                                  Text(' ${e.receiptPaths.length}', style: TextStyle(fontSize: 11,
+                                      color: theme.colorScheme.primary.withValues(alpha: 0.7))),
+                              ]),
                             ),
                           ]),
                           trailing: Text(Formatters.currency(e.amount),
@@ -156,16 +161,9 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
     PaymentMethod.transfer => '轉帳',
   };
 
-  void _viewReceipt(String path) {
+  void _viewReceipts(List<String> paths) {
     Navigator.push(context, MaterialPageRoute(
-      builder: (_) => Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white,
-            title: const Text('收據照片')),
-        body: Center(child: InteractiveViewer(
-          child: Image.file(File(path)),
-        )),
-      ),
+      builder: (_) => _ReceiptGalleryPage(paths: paths),
     ));
   }
 
@@ -185,5 +183,38 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
         ),
       ],
     ));
+  }
+}
+
+/// 收據照片瀏覽（左右滑動 PageView）
+class _ReceiptGalleryPage extends StatefulWidget {
+  final List<String> paths;
+  const _ReceiptGalleryPage({required this.paths});
+  @override
+  State<_ReceiptGalleryPage> createState() => _ReceiptGalleryPageState();
+}
+
+class _ReceiptGalleryPageState extends State<_ReceiptGalleryPage> {
+  int _current = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        title: Text('收據照片 ${_current + 1}/${widget.paths.length}'),
+      ),
+      body: PageView.builder(
+        itemCount: widget.paths.length,
+        onPageChanged: (i) => setState(() => _current = i),
+        itemBuilder: (context, index) => Center(
+          child: InteractiveViewer(
+            child: Image.file(File(widget.paths[index])),
+          ),
+        ),
+      ),
+    );
   }
 }

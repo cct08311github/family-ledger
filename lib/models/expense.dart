@@ -53,8 +53,11 @@ class Expense {
   @Enumerated(EnumType.name)
   PaymentMethod paymentMethod = PaymentMethod.cash;
 
-  /// 發票照片本地路徑
+  /// 發票照片本地路徑（保留向下相容）
   String? receiptPath;
+
+  /// 多張收據照片路徑（上限 10 張）
+  List<String> receiptPaths = [];
 
   /// 備註
   String? note;
