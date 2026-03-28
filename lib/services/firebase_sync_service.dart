@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:isar/isar.dart';
@@ -34,9 +35,137 @@ class FirebaseSyncService {
 
   // ── 匿名登入（最簡方案，可後續升級為 Google Sign-In） ──
 
+  static StreamSubscription? _expenseListener;
+  static StreamSubscription? _settlementListener;
+  static String? _syncedGroupId;
+
   static Future<User?> signInAnonymously() async {
     final credential = await _auth.signInAnonymously();
     return credential.user;
+  }
+
+  /// 首次同步：把本地群組、成員、支出、結算上傳到 Firestore
+  static Future<void> initialSync() async {
+    if (!isSignedIn) return;
+    final isar = await DatabaseService.instance;
+    final groupId = await DatabaseService.getPrimaryGroupId();
+    if (groupId == null) return;
+
+    // 上傳群組
+    final group = await isar.familyGroups.filter().idEqualTo(groupId).findFirst();
+    if (group != null) await syncGroupUp(group);
+
+    // 上傳所有成員
+    final members = await isar.familyMembers.filter().groupIdEqualTo(groupId).findAll();
+    for (final m in members) {
+      await syncMemberUp(groupId, m);
+    }
+
+    // 上傳所有支出
+    final expenses = await isar.expenses.filter().groupIdEqualTo(groupId).findAll();
+    for (final e in expenses) {
+      await syncExpenseUp(groupId, e);
+    }
+
+    // 上傳所有結算
+    final settlements = await isar.settlements.filter().groupIdEqualTo(groupId).findAll();
+    for (final s in settlements) {
+      await syncSettlementUp(groupId, s);
+    }
+
+    // 開始即時監聽
+    startRealtimeSync(groupId);
+  }
+
+  /// 開始即時監聽 Firestore 變更（支出 + 結算）
+  static void startRealtimeSync(String groupId) {
+    if (_syncedGroupId == groupId) return; // 已在監聽
+    stopRealtimeSync();
+    _syncedGroupId = groupId;
+
+    // 監聽遠端支出變更
+    _expenseListener = _expensesRef(groupId)
+        .snapshots()
+        .listen((snapshot) async {
+      for (final change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.removed) {
+          // 遠端刪除 → 本地刪除
+          final isar = await DatabaseService.instance;
+          final local = await isar.expenses.filter().idEqualTo(change.doc.id).findFirst();
+          if (local != null) {
+            await isar.writeTxn(() async {
+              await isar.expenses.delete(local.isarId);
+            });
+          }
+        } else {
+          // 新增或修改 → merge 到本地
+          final data = change.doc.data();
+          if (data != null) {
+            await mergeExpenseFromRemote(data, change.doc.id);
+          }
+        }
+      }
+    });
+
+    // 監聽遠端結算變更
+    _settlementListener = _settlementsRef(groupId)
+        .snapshots()
+        .listen((snapshot) async {
+      for (final change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.removed) {
+          final isar = await DatabaseService.instance;
+          final local = await isar.settlements.filter().idEqualTo(change.doc.id).findFirst();
+          if (local != null) {
+            await isar.writeTxn(() async {
+              await isar.settlements.delete(local.isarId);
+            });
+          }
+        } else {
+          final data = change.doc.data();
+          if (data != null) {
+            await _mergeSettlementFromRemote(data, change.doc.id);
+          }
+        }
+      }
+    });
+  }
+
+  /// 停止即時監聽
+  static void stopRealtimeSync() {
+    _expenseListener?.cancel();
+    _settlementListener?.cancel();
+    _expenseListener = null;
+    _settlementListener = null;
+    _syncedGroupId = null;
+  }
+
+  /// 將遠端結算寫入本地 Isar
+  static Future<void> _mergeSettlementFromRemote(
+      Map<String, dynamic> data, String settlementId) async {
+    final isar = await DatabaseService.instance;
+    final local = await isar.settlements.filter().idEqualTo(settlementId).findFirst();
+    final remoteCreatedAt = (data['createdAt'] as Timestamp).toDate();
+
+    // 如果本地已有且較新，跳過
+    if (local != null && local.createdAt.isAfter(remoteCreatedAt)) return;
+
+    final settlement = Settlement()
+      ..id = settlementId
+      ..groupId = (await DatabaseService.getPrimaryGroupId()) ?? ''
+      ..fromMemberId = data['fromMemberId'] as String
+      ..fromMemberName = data['fromMemberName'] as String
+      ..toMemberId = data['toMemberId'] as String
+      ..toMemberName = data['toMemberName'] as String
+      ..amount = (data['amount'] as num).toDouble()
+      ..note = data['note'] as String?
+      ..date = (data['date'] as Timestamp).toDate()
+      ..createdAt = remoteCreatedAt;
+
+    if (local != null) settlement.isarId = local.isarId;
+
+    await isar.writeTxn(() async {
+      await isar.settlements.put(settlement);
+    });
   }
 
   // ── 群組同步 ──
