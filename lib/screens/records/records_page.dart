@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:gap/gap.dart';
 import '../../models/expense.dart';
 import '../../providers/expense_provider.dart';
+import '../../utils/formatters.dart';
+import '../expense/expense_form_page.dart';
 
 class RecordsPage extends ConsumerStatefulWidget {
   const RecordsPage({super.key});
@@ -14,7 +16,6 @@ class RecordsPage extends ConsumerStatefulWidget {
 
 class _RecordsPageState extends ConsumerState<RecordsPage> {
   String _filterType = '全部'; // 全部 / 共同 / 個人
-  String? _filterCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +48,7 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
           if (filtered.isEmpty) {
             return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.receipt_long_outlined, size: 64,
-                  color: theme.colorScheme.primary.withOpacity(0.3)),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.3)),
               const Gap(16),
               Text('沒有記錄', style: theme.textTheme.titleMedium),
             ]));
@@ -75,12 +76,23 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
                     Text(dateKey, style: theme.textTheme.labelLarge?.copyWith(
                         color: theme.colorScheme.primary)),
                     const Spacer(),
-                    Text('NT\$ ${NumberFormat('#,##0').format(dayTotal)}',
+                    Text(Formatters.currency(dayTotal),
                         style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
                   ]),
                 ),
                 ...items.map((e) => Slidable(
+                      startActionPane: ActionPane(motion: const DrawerMotion(), children: [
+                        SlidableAction(
+                          onPressed: (_) => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => ExpenseFormPage(existingExpense: e))),
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                          icon: Icons.edit,
+                          label: '編輯',
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ]),
                       endActionPane: ActionPane(motion: const DrawerMotion(), children: [
                         SlidableAction(
                           onPressed: (_) => _confirmDelete(e),
@@ -94,6 +106,8 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
                       child: Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
+                          onTap: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => ExpenseFormPage(existingExpense: e))),
                           leading: Container(
                             width: 40, height: 40,
                             decoration: BoxDecoration(
@@ -104,7 +118,7 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
                           ),
                           title: Text(e.description),
                           subtitle: Text('${e.category} · ${e.payerName}付${e.isShared ? ' · 共同' : ''}'),
-                          trailing: Text('NT\$ ${NumberFormat('#,##0').format(e.amount)}',
+                          trailing: Text(Formatters.currency(e.amount),
                               style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
                         ),
                       ),

@@ -6,6 +6,8 @@ import '../../models/expense.dart';
 import '../../providers/expense_provider.dart';
 import '../../providers/member_provider.dart';
 import '../../providers/balance_provider.dart';
+import '../../utils/formatters.dart';
+import '../../widgets/member_avatar.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -49,13 +51,13 @@ class HomePage extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.family_restroom, size: 80,
-                        color: theme.colorScheme.primary.withOpacity(0.3)),
+                        color: theme.colorScheme.primary.withValues(alpha: 0.3)),
                     const Gap(24),
                     Text('歡迎使用家計本！', style: theme.textTheme.headlineSmall),
                     const Gap(8),
                     Text('請先到「設定」新增家庭成員',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         )),
                   ],
                 ),
@@ -92,7 +94,7 @@ class HomePage extends ConsumerWidget {
               child: Text('切換身份', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             ),
             ...members.map((m) => ListTile(
-                  leading: CircleAvatar(child: Text(m.name[0])),
+                  leading: MemberAvatar(name: m.name, size: 40),
                   title: Text(m.name),
                   trailing: m.isCurrentUser ? const Icon(Icons.check, color: Colors.green) : null,
                   onTap: () {
@@ -132,23 +134,23 @@ class _MonthlySummaryCard extends StatelessWidget {
               Text(monthLabel, style: theme.textTheme.titleMedium),
             ]),
             const Gap(16),
-            Text('NT\$ ${NumberFormat('#,##0').format(total)}',
+            Text(Formatters.currency(total),
                 style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
             const Gap(4),
             Text('本月總支出', style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6))),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
             const Gap(16),
             Row(children: [
-              Expanded(child: _MiniStat(label: '共同支出', value: 'NT\$ ${NumberFormat('#,##0').format(sharedTotal)}',
+              Expanded(child: _MiniStat(label: '共同支出', value: Formatters.currency(sharedTotal),
                   icon: Icons.people, color: theme.colorScheme.tertiary)),
               const Gap(12),
-              Expanded(child: _MiniStat(label: '個人支出', value: 'NT\$ ${NumberFormat('#,##0').format(personalTotal)}',
+              Expanded(child: _MiniStat(label: '個人支出', value: Formatters.currency(personalTotal),
                   icon: Icons.person, color: theme.colorScheme.secondary)),
             ]),
             const Gap(8),
             Text('共 ${expenses.length} 筆記錄', style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
           ],
         ),
       ),
@@ -166,7 +168,7 @@ class _MiniStat extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(icon, size: 14, color: color),
@@ -198,26 +200,26 @@ class _DebtOverviewCard extends StatelessWidget {
           const Gap(12),
           if (debts.isEmpty)
             Text('目前沒有未結清的債務 🎉', style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6)))
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6)))
           else
             ...debts.map((d) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: theme.colorScheme.error.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(color: theme.colorScheme.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                       child: Text(d['fromName'] as String, style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.w600, fontSize: 13)),
                     ),
                     const Gap(8),
-                    Icon(Icons.arrow_forward, size: 16, color: theme.colorScheme.onSurface.withOpacity(0.4)),
+                    Icon(Icons.arrow_forward, size: 16, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
                     const Gap(8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                       child: Text(d['toName'] as String, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600, fontSize: 13)),
                     ),
                     const Spacer(),
-                    Text('NT\$ ${NumberFormat('#,##0').format(d['amount'])}',
+                    Text(Formatters.currency(d['amount'] as num),
                         style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
                   ]),
                 )),
@@ -245,7 +247,7 @@ class _RecentExpensesCard extends StatelessWidget {
           const Gap(12),
           if (expenses.isEmpty)
             Text('還沒有任何記錄，點下方「記帳」開始！', style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6)))
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6)))
           else
             ...expenses.map((e) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
@@ -260,9 +262,9 @@ class _RecentExpensesCard extends StatelessWidget {
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(e.description, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
                       Text('${DateFormat('MM/dd').format(e.date)} · ${e.category} · ${e.payerName}付',
-                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
                     ])),
-                    Text('NT\$ ${NumberFormat('#,##0').format(e.amount)}',
+                    Text(Formatters.currency(e.amount),
                         style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
                   ]),
                 )),

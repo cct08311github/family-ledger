@@ -80,6 +80,17 @@ class ExpenseNotifier extends AsyncNotifier<void> {
     }
   }
 
+  Future<void> updateExpense(Expense expense) async {
+    final isar = await DatabaseService.instance;
+    expense.updatedAt = DateTime.now();
+    await isar.writeTxn(() async {
+      await isar.expenses.put(expense);
+    });
+    if (expense.isShared) {
+      await ref.read(balanceNotifierProvider.notifier).recalculate();
+    }
+  }
+
   Future<void> deleteExpense(Expense expense) async {
     final isar = await DatabaseService.instance;
     final wasShared = expense.isShared;
