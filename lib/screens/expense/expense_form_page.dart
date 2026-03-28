@@ -20,7 +20,8 @@ import '../../widgets/calculator_sheet.dart';
 
 class ExpenseFormPage extends ConsumerStatefulWidget {
   final Expense? existingExpense;
-  const ExpenseFormPage({super.key, this.existingExpense});
+  final Expense? duplicateFrom;
+  const ExpenseFormPage({super.key, this.existingExpense, this.duplicateFrom});
   @override
   ConsumerState<ExpenseFormPage> createState() => _ExpenseFormPageState();
 }
@@ -50,17 +51,18 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   @override
   void initState() {
     super.initState();
-    final e = widget.existingExpense;
+    final e = widget.existingExpense ?? widget.duplicateFrom;
     if (e != null) {
+      final isDuplicate = widget.duplicateFrom != null;
       _descController.text = e.description;
       _amountController.text = e.amount.toStringAsFixed(0);
       _noteController.text = e.note ?? '';
-      _selectedDate = e.date;
+      _selectedDate = isDuplicate ? DateTime.now() : e.date;
       _selectedCategory = e.category;
       _isShared = e.isShared;
       _splitMethod = e.splitMethod;
       _payerId = e.payerId;
-      _receiptPath = e.receiptPath;
+      _receiptPath = isDuplicate ? null : e.receiptPath;
       _participantIds = e.splits.where((s) => s.isParticipant).map((s) => s.memberId).toSet();
       if (_splitMethod == SplitMethod.percentage) {
         final total = e.amount;
