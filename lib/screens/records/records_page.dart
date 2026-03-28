@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -117,7 +118,14 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
                             child: Text(e.isShared ? '👥' : '👤', style: const TextStyle(fontSize: 18)),
                           ),
                           title: Text(e.description),
-                          subtitle: Text('${e.category} · ${e.payerName}付${e.isShared ? ' · 共同' : ''}'),
+                          subtitle: Row(children: [
+                            Expanded(child: Text('${e.category} · ${e.payerName}付${e.isShared ? ' · 共同' : ''}')),
+                            if (e.receiptPath != null) GestureDetector(
+                              onTap: () => _viewReceipt(e.receiptPath!),
+                              child: Icon(Icons.receipt_long, size: 16,
+                                  color: theme.colorScheme.primary.withValues(alpha: 0.7)),
+                            ),
+                          ]),
                           trailing: Text(Formatters.currency(e.amount),
                               style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
                         ),
@@ -130,6 +138,19 @@ class _RecordsPageState extends ConsumerState<RecordsPage> {
         },
       ),
     );
+  }
+
+  void _viewReceipt(String path) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white,
+            title: const Text('收據照片')),
+        body: Center(child: InteractiveViewer(
+          child: Image.file(File(path)),
+        )),
+      ),
+    ));
   }
 
   void _confirmDelete(Expense expense) {

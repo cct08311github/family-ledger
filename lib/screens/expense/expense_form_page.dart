@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:gap/gap.dart';
 import '../../models/enums.dart';
@@ -10,6 +12,7 @@ import '../../models/family_member.dart';
 import '../../providers/member_provider.dart';
 import '../../providers/expense_provider.dart';
 import '../../providers/category_provider.dart';
+import '../../services/image_storage_service.dart';
 
 class ExpenseFormPage extends ConsumerStatefulWidget {
   final Expense? existingExpense;
@@ -34,6 +37,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   Map<String, double> _customAmounts = {};
   Map<String, TextEditingController> _pctCtrl = {};
   Map<String, TextEditingController> _customCtrl = {};
+  String? _receiptPath;
 
   bool get _isEditing => widget.existingExpense != null;
 
@@ -50,6 +54,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       _isShared = e.isShared;
       _splitMethod = e.splitMethod;
       _payerId = e.payerId;
+      _receiptPath = e.receiptPath;
       _participantIds = e.splits.where((s) => s.isParticipant).map((s) => s.memberId).toSet();
       if (_splitMethod == SplitMethod.percentage) {
         final total = e.amount;
@@ -274,6 +279,42 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                   decoration: const InputDecoration(labelText: '備註（可選）',
                       prefixIcon: Icon(Icons.note_outlined), border: OutlineInputBorder()),
                   maxLines: 2),
+              const Gap(16),
+              // 收據照片
+              Text('收據 / 發票照片', style: theme.textTheme.labelLarge),
+              const Gap(8),
+              if (_receiptPath != null) ...[
+                Stack(children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.file(File(_receiptPath!),
+                        height: 200, width: double.infinity, fit: BoxFit.cover),
+                  ),
+                  Positioned(top: 8, right: 8, child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    _CircleIconButton(
+                      icon: Icons.fullscreen,
+                      onTap: () => _viewReceiptFullScreen(_receiptPath!),
+                    ),
+                    const Gap(8),
+                    _CircleIconButton(
+                      icon: Icons.close,
+                      onTap: () => setState(() => _receiptPath = null),
+                    ),
+                  ])),
+                ]),
+                const Gap(8),
+                OutlinedButton.icon(
+                  onPressed: _pickReceipt,
+                  icon: const Icon(Icons.swap_horiz, size: 18),
+                  label: const Text('更換照片'),
+                ),
+              ] else
+                OutlinedButton.icon(
+                  onPressed: _pickReceipt,
+                  icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                  label: const Text('拍照或選擇照片'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                ),
               const Gap(32),
               // 儲存
               FilledButton.icon(
@@ -288,6 +329,35 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
         },
       ),
     );
+  }
+
+  Future<void> _pickReceipt() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.camera_alt), title: const Text('拍照'),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera)),
+        ListTile(leading: const Icon(Icons.photo_library), title: const Text('從相簿選擇'),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery)),
+      ])),
+    );
+    if (source == null) return;
+    final picked = await ImagePicker().pickImage(source: source, maxWidth: 1920, imageQuality: 85);
+    if (picked == null) return;
+    final saved = await ImageStorageService.saveReceipt(picked.path);
+    setState(() => _receiptPath = saved);
+  }
+
+  void _viewReceiptFullScreen(String path) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white),
+        body: Center(child: InteractiveViewer(
+          child: Image.file(File(path)),
+        )),
+      ),
+    ));
   }
 
   Future<void> _save(List<FamilyMember> members) async {
@@ -349,6 +419,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
         ..payerId = _payerId!
         ..payerName = nameMap[_payerId] ?? ''
         ..splits = splits
+        ..receiptPath = _receiptPath
         ..note = _noteController.text.trim().isEmpty ? null : _noteController.text.trim();
       await ref.read(expenseNotifierProvider.notifier).updateExpense(existing);
     } else {
@@ -357,6 +428,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
         amount: amount, category: _selectedCategory, isShared: _isShared,
         splitMethod: _splitMethod, payerId: _payerId!,
         payerName: nameMap[_payerId] ?? '', splits: splits,
+        receiptPath: _receiptPath,
         note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
         createdBy: currentUser?.id ?? _payerId!,
       );
@@ -366,5 +438,26 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
           SnackBar(content: Text(_isEditing ? '已更新支出' : '已新增支出'), behavior: SnackBarBehavior.floating));
       Navigator.pop(context);
     }
+  }
+}
+
+class _CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _CircleIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 32, height: 32,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.5),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 18),
+      ),
+    );
   }
 }
