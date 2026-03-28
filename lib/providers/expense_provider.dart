@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 import 'package:uuid/uuid.dart';
+import '../models/enums.dart';
 import '../models/expense.dart';
 import '../models/split_detail.dart';
 import '../services/database_service.dart';

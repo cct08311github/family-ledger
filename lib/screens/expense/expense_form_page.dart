@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:gap/gap.dart';
+import '../../models/enums.dart';
 import '../../models/expense.dart';
 import '../../models/split_detail.dart';
 import '../../models/family_member.dart';
