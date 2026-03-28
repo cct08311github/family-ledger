@@ -6,6 +6,8 @@ import '../../providers/member_provider.dart';
 import '../../services/app_settings_service.dart';
 import '../../services/firebase_sync_service.dart';
 import '../../services/auth_service.dart';
+import '../auth/login_page.dart';
+import '../../app.dart';
 import '../../services/database_service.dart';
 import '../../providers/theme_provider.dart';
 import 'category_management_page.dart';
@@ -180,72 +182,34 @@ class SettingsPage extends ConsumerWidget {
             ),
           ])),
           const Gap(16),
-          // 帳號 & 同步
+          // 帳號
           Card(child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.sync_outlined, color: theme.colorScheme.primary, size: 20),
+                Icon(Icons.account_circle_outlined, color: theme.colorScheme.primary, size: 20),
                 const Gap(8),
-                Text('帳號與同步', style: theme.textTheme.titleMedium),
+                Text('帳號', style: theme.textTheme.titleMedium),
               ]),
               const Gap(8),
-              // 帳號狀態
-              if (AuthService.isSignedIn) ...[
-                Row(children: [
-                  const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                  const Gap(6),
-                  Expanded(child: Text(
-                    '已登入${AuthService.email != null ? '（${AuthService.email}）' : ''}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.green),
-                  )),
-                ]),
-                const Gap(4),
-                Text('多台裝置登入同一個帳號即可自動同步',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
-              ] else ...[
-                Row(children: [
-                  Icon(Icons.info_outline, size: 16,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
-                  const Gap(6),
-                  Text('匿名模式（僅限本機）',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
-                ]),
-                const Gap(12),
-                SizedBox(width: double.infinity, child: FilledButton.icon(
-                  icon: Image.network(
-                    'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-                    width: 20, height: 20,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 20),
-                  ),
-                  label: const Text('使用 Google 帳號登入'),
-                  onPressed: () => _signInWithGoogle(context),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black87,
-                    minimumSize: const Size.fromHeight(48),
-                    side: BorderSide(color: Colors.grey.shade300),
-                  ),
+              Row(children: [
+                const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                const Gap(6),
+                Expanded(child: Text(
+                  '已登入${AuthService.email != null ? '（${AuthService.email}）' : ''}',
+                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.green),
                 )),
-                const Gap(4),
-                Text('登入後可跨裝置同步，同一帳號的所有裝置自動共享資料',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
-              ],
-              const Gap(16),
-              // 邀請碼
+              ]),
+              const Gap(4),
+              Text('多台裝置登入同一個帳號即可自動同步',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
+              const Gap(12),
               SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                icon: const Icon(Icons.link, size: 18),
-                label: const Text('產生邀請碼（分享給家人）'),
-                onPressed: () => _generateInviteCode(context),
-              )),
-              const Gap(8),
-              SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                icon: const Icon(Icons.input, size: 18),
-                label: const Text('輸入邀請碼（加入群組）'),
-                onPressed: () => _joinByInviteCode(context, ref),
+                icon: const Icon(Icons.logout, size: 18),
+                label: const Text('登出'),
+                onPressed: () => _signOut(context),
+                style: OutlinedButton.styleFrom(foregroundColor: theme.colorScheme.error),
               )),
             ]),
           )),
@@ -348,28 +312,34 @@ class SettingsPage extends ConsumerWidget {
     ));
   }
 
-  void _signInWithGoogle(BuildContext context) async {
-    try {
-      final user = await AuthService.signInWithGoogle();
-      if (user == null) return; // 使用者取消
-      // 重新同步（新 UID 可能不同）
-      await FirebaseSyncService.initialSync();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google 登入成功${user.email != null ? "（${user.email}）" : ""}'),
-            behavior: SnackBarBehavior.floating,
+  void _signOut(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('登出'),
+        content: const Text('登出後將無法存取資料，確定要登出嗎？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+            child: const Text('登出'),
           ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('登入失敗：$e'), behavior: SnackBarBehavior.floating),
-        );
-      }
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await AuthService.signOut();
+    if (context.mounted) {
+      // 回到登入頁
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const _LoggedOutPage()),
+        (route) => false,
+      );
     }
   }
+
+  // ── 以下方法保留但不再在 UI 中顯示 ──
 
   void _generateInviteCode(BuildContext context) async {
     final groupId = await DatabaseService.getPrimaryGroupId();
@@ -478,5 +448,21 @@ class SettingsPage extends ConsumerWidget {
         ),
       ],
     ));
+  }
+}
+
+/// 登出後顯示的頁面（重新登入）
+class _LoggedOutPage extends StatelessWidget {
+  const _LoggedOutPage();
+  @override
+  Widget build(BuildContext context) {
+    return LoginPage(
+      onLoginSuccess: () {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ProviderScope(child: FamilyLedgerApp())),
+          (route) => false,
+        );
+      },
+    );
   }
 }

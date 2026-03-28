@@ -77,9 +77,14 @@ class AuthService {
     return user;
   }
 
-  /// Google Sign-In
+  /// Google Sign-In（含 serverClientId 給 iOS/macOS 使用）
   static Future<User?> signInWithGoogle() async {
-    final googleUser = await GoogleSignIn(scopes: ['email']).signIn();
+    final googleSignIn = GoogleSignIn(
+      scopes: ['email'],
+      serverClientId: '137558877215-85ak3t2lbne5iuad4aoop4fadn2m4p7u.apps.googleusercontent.com',
+    );
+
+    final googleUser = await googleSignIn.signIn();
     if (googleUser == null) return null; // 使用者取消
 
     final googleAuth = await googleUser.authentication;
@@ -88,14 +93,13 @@ class AuthService {
       idToken: googleAuth.idToken,
     );
 
-    // 如果目前是匿名登入，link 到 Google 帳號（保留原有資料）
+    // 如果目前是匿名登入，先嘗試 link（保留原有資料）
     UserCredential result;
     if (currentUser != null && currentUser!.isAnonymous) {
       try {
         result = await currentUser!.linkWithCredential(credential);
       } on FirebaseAuthException catch (e) {
         if (e.code == 'credential-already-in-use') {
-          // 這個 Google 帳號已在別的裝置登入過 → 直接登入那個帳號
           result = await _auth.signInWithCredential(credential);
         } else {
           rethrow;
