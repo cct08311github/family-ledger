@@ -42,12 +42,15 @@ class ExpenseParserService {
 語音輸入：「$text」''';
 
     final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
     );
 
     final response = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
       body: jsonEncode({
         'contents': [
           {
@@ -64,7 +67,7 @@ class ExpenseParserService {
     );
 
     if (response.statusCode != 200) {
-      throw Exception('AI 解析失敗 (${response.statusCode})：${response.body}');
+      throw Exception('AI 解析失敗 (${response.statusCode})');
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'auth_service.dart';
@@ -285,68 +286,86 @@ class FirebaseSyncService {
   }
 
   /// 將遠端支出寫入本地 Isar（merge 邏輯：以 updatedAt 較新者為準）
+  /// 含防禦性型別檢查，避免惡意或格式錯誤的資料 crash app
   static Future<void> mergeExpenseFromRemote(
       Map<String, dynamic> data, String expenseId) async {
-    final isar = await DatabaseService.instance;
-    final local = await isar.expenses.filter().idEqualTo(expenseId).findFirst();
+    try {
+      final isar = await DatabaseService.instance;
+      final local = await isar.expenses.filter().idEqualTo(expenseId).findFirst();
 
-    final remoteUpdatedAt = (data['updatedAt'] as Timestamp).toDate();
+      final updatedAtRaw = data['updatedAt'];
+      if (updatedAtRaw is! Timestamp) return; // 缺少必要欄位，跳過
+      final remoteUpdatedAt = updatedAtRaw.toDate();
 
-    // 如果本地已有且較新，跳過
-    if (local != null && local.updatedAt.isAfter(remoteUpdatedAt)) return;
+      if (local != null && local.updatedAt.isAfter(remoteUpdatedAt)) return;
 
-    final expense = Expense()
-      ..id = expenseId
-      ..groupId = (await DatabaseService.getPrimaryGroupId()) ?? ''
-      ..date = (data['date'] as Timestamp).toDate()
-      ..description = data['description'] as String
-      ..amount = (data['amount'] as num).toDouble()
-      ..category = data['category'] as String
-      ..isShared = data['isShared'] as bool
-      ..splitMethod = SplitMethod.values.firstWhere(
-          (e) => e.name == data['splitMethod'],
-          orElse: () => SplitMethod.equal)
-      ..payerId = data['payerId'] as String
-      ..payerName = data['payerName'] as String
-      ..paymentMethod = PaymentMethod.values.firstWhere(
-          (e) => e.name == (data['paymentMethod'] ?? 'cash'),
-          orElse: () => PaymentMethod.cash)
-      ..splits = ((data['splits'] as List?) ?? []).map((s) {
-        final map = s as Map<String, dynamic>;
-        return SplitDetail()
-          ..memberId = map['memberId'] as String
-          ..memberName = map['memberName'] as String
-          ..shareAmount = (map['shareAmount'] as num).toDouble()
-          ..paidAmount = (map['paidAmount'] as num).toDouble()
-          ..isParticipant = map['isParticipant'] as bool;
-      }).toList()
-      ..receiptPath = data['receiptPath'] as String?
-      ..note = data['note'] as String?
-      ..createdBy = data['createdBy'] as String
-      ..createdAt = (data['createdAt'] as Timestamp).toDate()
-      ..updatedAt = remoteUpdatedAt;
+      // 防禦性解析：每個欄位都有 fallback
+      final description = (data['description'] as String?) ?? '';
+      if (description.isEmpty) return; // 無效資料
+
+      final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+      if (amount <= 0 || amount >= 100000000) return; // 金額不合理
+
+      final expense = Expense()
+        ..id = expenseId
+        ..groupId = (await DatabaseService.getPrimaryGroupId()) ?? ''
+        ..date = (data['date'] as Timestamp?)?.toDate() ?? DateTime.now()
+        ..description = description.length > 200 ? description.substring(0, 200) : description
+        ..amount = amount
+        ..category = (data['category'] as String?) ?? '其他'
+        ..isShared = (data['isShared'] as bool?) ?? false
+        ..splitMethod = SplitMethod.values.firstWhere(
+            (e) => e.name == data['splitMethod'],
+            orElse: () => SplitMethod.equal)
+        ..payerId = (data['payerId'] as String?) ?? ''
+        ..payerName = (data['payerName'] as String?) ?? ''
+        ..paymentMethod = PaymentMethod.values.firstWhere(
+            (e) => e.name == (data['paymentMethod'] ?? 'cash'),
+            orElse: () => PaymentMethod.cash)
+        ..splits = ((data['splits'] as List?) ?? []).where((s) => s is Map).map((s) {
+          final map = s as Map<String, dynamic>;
+          return SplitDetail()
+            ..memberId = (map['memberId'] as String?) ?? ''
+            ..memberName = (map['memberName'] as String?) ?? ''
+            ..shareAmount = (map['shareAmount'] as num?)?.toDouble() ?? 0
+            ..paidAmount = (map['paidAmount'] as num?)?.toDouble() ?? 0
+            ..isParticipant = (map['isParticipant'] as bool?) ?? false;
+        }).toList()
+        ..receiptPath = data['receiptPath'] as String?
+        ..receiptPaths = ((data['receiptPaths'] as List?) ?? []).whereType<String>().toList()
+        ..note = data['note'] as String?
+        ..createdBy = (data['createdBy'] as String?) ?? ''
+        ..createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now()
+        ..updatedAt = remoteUpdatedAt;
 
     // 保留本地 isarId
     if (local != null) expense.isarId = local.isarId;
 
-    await isar.writeTxn(() async {
-      await isar.expenses.put(expense);
-    });
+      await isar.writeTxn(() async {
+        await isar.expenses.put(expense);
+      });
+    } catch (_) {
+      // 防禦性：任何反序列化錯誤靜默忽略，不影響 app 運行
+    }
   }
 
   // ── 邀請碼加入群組 ──
 
-  /// 產生 6 碼邀請碼（存在群組 doc 上）
+  /// 產生 8 碼加密安全邀請碼（24 小時有效，最多使用 5 次）
   static Future<String> generateInviteCode(String groupId) async {
-    final code = DateTime.now().millisecondsSinceEpoch.toRadixString(36).substring(2, 8).toUpperCase();
+    const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去除易混淆字元 0OI1
+    final random = Random.secure();
+    final code = List.generate(8, (_) => charset[random.nextInt(charset.length)]).join();
     await _groupDoc(groupId).update({
       'inviteCode': code,
       'inviteExpiry': Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
+      'inviteUsedCount': 0,
+      'inviteMaxUses': 5,
     });
     return code;
   }
 
-  /// 用邀請碼加入群組（同時將 UID 加入 memberUids）
+  /// 用邀請碼加入群組（同時將 UID 加入 memberUids，含使用次數限制）
   static Future<String?> joinGroupByCode(String code) async {
     final snap = await _groupsRef()
         .where('inviteCode', isEqualTo: code)
@@ -354,10 +373,20 @@ class FirebaseSyncService {
         .limit(1)
         .get();
     if (snap.docs.isEmpty) return null;
-    final groupId = snap.docs.first.id;
+
+    final doc = snap.docs.first;
+    final data = doc.data();
+    final usedCount = (data['inviteUsedCount'] as num?) ?? 0;
+    final maxUses = (data['inviteMaxUses'] as num?) ?? 5;
+    if (usedCount >= maxUses) return null; // 已達使用上限
+
+    final groupId = doc.id;
     final uid = currentUser?.uid;
     if (uid != null) {
-      await addMemberUid(groupId, uid);
+      await _groupDoc(groupId).update({
+        'memberUids': FieldValue.arrayUnion([uid]),
+        'inviteUsedCount': FieldValue.increment(1),
+      });
     }
     return groupId;
   }
