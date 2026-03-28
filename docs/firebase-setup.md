@@ -53,31 +53,19 @@ flutterfire configure --project=你的專案ID
 
 ### 6. 設定 Firestore Security Rules
 
-在 Firebase Console → Firestore → 規則，貼上：
+在 Firebase Console → Firestore → 規則，貼上 `firestore.rules` 檔案的內容。
 
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // 群組：只有擁有者和成員可讀寫
-    match /groups/{groupId} {
-      allow read, write: if request.auth != null;
-
-      match /members/{memberId} {
-        allow read, write: if request.auth != null;
-      }
-      match /expenses/{expenseId} {
-        allow read, write: if request.auth != null;
-      }
-      match /settlements/{settlementId} {
-        allow read, write: if request.auth != null;
-      }
-    }
-  }
-}
+或使用 Firebase CLI 部署：
+```bash
+firebase deploy --only firestore:rules
 ```
 
-> 注意：以上是基本規則。正式上線前應改為更嚴格的規則（按 groupId 成員驗證）。
+正式環境規則包含：
+- **群組成員驗證**：只有 `memberUids[]` 內的 UID 可讀寫
+- **擁有者特權**：僅 `ownerUid` 可刪除群組或轉移擁有權
+- **欄位型別驗證**：金額必須為正數且 < 1 億，描述 ≤ 200 字
+- **文件大小限制**：每筆文件最多 30 個欄位
+- **預設拒絕**：未定義的路徑全部拒絕存取
 
 ### 7. 啟用同步
 
