@@ -1,6 +1,7 @@
 import 'dart:math';
 import '../models/split_detail.dart';
 import '../models/expense.dart';
+import '../models/settlement.dart';
 
 /// 拆帳計算核心服務
 class SplitCalculator {
@@ -85,7 +86,7 @@ class SplitCalculator {
   /// 回傳 Map<'fromId->toId', amount>，amount > 0 表示 from 欠 to
   static Map<String, double> calculateNetDebts({
     required List<Expense> expenses,
-    required List<Map<String, double>> settlements, // [{fromId: x, toId: y, amount: z}]
+    required List<Settlement> settlements,
   }) {
     // debts[fromId][toId] = 累計金額
     final Map<String, Map<String, double>> debts = {};
@@ -99,10 +100,6 @@ class SplitCalculator {
         if (!split.isParticipant) continue;
         if (split.memberId == payerId) continue;
 
-        // split.memberId 欠 payerId 的金額 = shareAmount
-        final key = '${split.memberId}->${payerId}';
-        final reverseKey = '${payerId}->${split.memberId}';
-
         debts.putIfAbsent(split.memberId, () => {});
         debts[split.memberId]!.putIfAbsent(payerId, () => 0);
         debts[split.memberId]![payerId] =
@@ -110,7 +107,16 @@ class SplitCalculator {
       }
     }
 
-    // 2. 淨額化（A 欠 B 和 B 欠 A 互相抵消）
+    // 2. 扣除結算記錄（settlement = 已還錢，減少債務）
+    for (final s in settlements) {
+      // from 已經還錢給 to → 減少 from 欠 to 的金額
+      debts.putIfAbsent(s.fromMemberId, () => {});
+      debts[s.fromMemberId]!.putIfAbsent(s.toMemberId, () => 0);
+      debts[s.fromMemberId]![s.toMemberId] =
+          debts[s.fromMemberId]![s.toMemberId]! - s.amount;
+    }
+
+    // 3. 淨額化（A 欠 B 和 B 欠 A 互相抵消）
     final Map<String, double> netDebts = {};
     final processed = <String>{};
 

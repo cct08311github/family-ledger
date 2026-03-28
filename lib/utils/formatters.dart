@@ -2,7 +2,7 @@ import 'package:intl/intl.dart';
 
 class Formatters {
   /// 新台幣格式：NT$ 1,234
-  static String currency(double amount) {
+  static String currency(num amount) {
     final formatter = NumberFormat('#,##0', 'zh_TW');
     return 'NT\$ ${formatter.format(amount.round())}';
   }

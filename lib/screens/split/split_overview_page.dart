@@ -1,15 +1,99 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:gap/gap.dart';
 import '../../providers/balance_provider.dart';
 import '../../providers/member_provider.dart';
+import '../../providers/settlement_provider.dart';
+import '../../utils/formatters.dart';
+import '../../widgets/member_avatar.dart';
 
-class SplitOverviewPage extends ConsumerWidget {
+class SplitOverviewPage extends ConsumerStatefulWidget {
   const SplitOverviewPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SplitOverviewPage> createState() => _SplitOverviewPageState();
+}
+
+class _SplitOverviewPageState extends ConsumerState<SplitOverviewPage> {
+  void _showSettlementDialog(Map<String, dynamic> debt) {
+    final amountController = TextEditingController(
+      text: (debt['amount'] as num).toStringAsFixed(0),
+    );
+    final noteController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 24, right: 24, top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('記錄付款', style: theme.textTheme.titleLarge),
+            const Gap(16),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              MemberAvatar(name: debt['fromName'] as String, size: 40),
+              const Gap(8),
+              Text(debt['fromName'] as String,
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+              const Gap(12),
+              const Icon(Icons.arrow_right_alt, size: 28),
+              const Gap(12),
+              MemberAvatar(name: debt['toName'] as String, size: 40),
+              const Gap(8),
+              Text(debt['toName'] as String,
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            ]),
+            const Gap(20),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '金額',
+                prefixText: 'NT\$ ',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const Gap(12),
+            TextField(
+              controller: noteController,
+              decoration: const InputDecoration(
+                labelText: '備註（選填）',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const Gap(20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () async {
+                  final amount = double.tryParse(amountController.text);
+                  if (amount == null || amount <= 0) return;
+                  await ref.read(settlementNotifierProvider.notifier).addSettlement(
+                    fromMemberId: debt['from'] as String,
+                    fromMemberName: debt['fromName'] as String,
+                    toMemberId: debt['to'] as String,
+                    toMemberName: debt['toName'] as String,
+                    amount: amount,
+                    note: noteController.text.isEmpty ? null : noteController.text,
+                  );
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                icon: const Icon(Icons.check),
+                label: const Text('確認付款'),
+              ),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final simplifiedDebts = ref.watch(simplifiedDebtsProvider);
     final netBalances = ref.watch(memberNetBalanceProvider);
@@ -32,7 +116,7 @@ class SplitOverviewPage extends ConsumerWidget {
               const Gap(4),
               Text('正數 = 被欠（可收錢），負數 = 欠人（需還錢）',
                   style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
               const Gap(16),
               netBalances.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
@@ -40,7 +124,7 @@ class SplitOverviewPage extends ConsumerWidget {
                 data: (balances) {
                   if (balances.isEmpty) {
                     return Text('目前沒有任何拆帳記錄', style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6)));
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6)));
                   }
                   final memberList = members.valueOrNull ?? [];
                   final nameMap = {for (final m in memberList) m.id: m.name};
@@ -51,19 +135,11 @@ class SplitOverviewPage extends ConsumerWidget {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Row(children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: isPositive
-                              ? Colors.green.withOpacity(0.1)
-                              : theme.colorScheme.error.withOpacity(0.1),
-                          child: Text(name[0], style: TextStyle(
-                              color: isPositive ? Colors.green : theme.colorScheme.error,
-                              fontWeight: FontWeight.w600)),
-                        ),
+                        MemberAvatar(name: name, size: 36),
                         const Gap(12),
                         Expanded(child: Text(name, style: theme.textTheme.bodyLarge)),
                         Text(
-                          '${isPositive ? '+' : ''}NT\$ ${NumberFormat('#,##0').format(e.value)}',
+                          Formatters.signedCurrency(e.value),
                           style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: isPositive ? Colors.green : theme.colorScheme.error),
@@ -88,7 +164,7 @@ class SplitOverviewPage extends ConsumerWidget {
               const Gap(4),
               Text('最少轉帳次數即可結清所有債務',
                   style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.5))),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
               const Gap(16),
               simplifiedDebts.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
@@ -96,7 +172,7 @@ class SplitOverviewPage extends ConsumerWidget {
                 data: (debts) {
                   if (debts.isEmpty) {
                     return Text('所有人帳目已結清 🎉', style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6)));
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6)));
                   }
                   return Column(children: debts.asMap().entries.map((entry) {
                     final i = entry.key;
@@ -105,28 +181,40 @@ class SplitOverviewPage extends ConsumerWidget {
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Row(children: [
-                        Container(
-                          width: 28, height: 28,
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary, shape: BoxShape.circle),
-                          alignment: Alignment.center,
-                          child: Text('${i + 1}', style: TextStyle(
-                              color: theme.colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                      child: Column(children: [
+                        Row(children: [
+                          Container(
+                            width: 28, height: 28,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary, shape: BoxShape.circle),
+                            alignment: Alignment.center,
+                            child: Text('${i + 1}', style: TextStyle(
+                                color: theme.colorScheme.onPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                          ),
+                          const Gap(12),
+                          Text(d['fromName'] as String, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+                          const Gap(8),
+                          const Icon(Icons.arrow_right_alt, size: 24),
+                          const Gap(8),
+                          Expanded(
+                            child: Text(d['toName'] as String, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+                          ),
+                          Text(Formatters.currency(d['amount'] as num),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+                        ]),
+                        const Gap(8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showSettlementDialog(d),
+                            icon: const Icon(Icons.payments_outlined, size: 18),
+                            label: const Text('記錄付款'),
+                          ),
                         ),
-                        const Gap(12),
-                        Text(d['fromName'] as String, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-                        const Gap(8),
-                        const Icon(Icons.arrow_right_alt, size: 24),
-                        const Gap(8),
-                        Text(d['toName'] as String, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-                        const Spacer(),
-                        Text('NT\$ ${NumberFormat('#,##0').format(d['amount'])}',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
                       ]),
                     );
                   }).toList());

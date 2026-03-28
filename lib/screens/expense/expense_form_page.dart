@@ -7,7 +7,6 @@ import '../../models/enums.dart';
 import '../../models/expense.dart';
 import '../../models/split_detail.dart';
 import '../../models/family_member.dart';
-import '../../models/category.dart';
 import '../../providers/member_provider.dart';
 import '../../providers/expense_provider.dart';
 import '../../providers/category_provider.dart';
@@ -36,6 +35,39 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   Map<String, TextEditingController> _pctCtrl = {};
   Map<String, TextEditingController> _customCtrl = {};
 
+  bool get _isEditing => widget.existingExpense != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existingExpense;
+    if (e != null) {
+      _descController.text = e.description;
+      _amountController.text = e.amount.toStringAsFixed(0);
+      _noteController.text = e.note ?? '';
+      _selectedDate = e.date;
+      _selectedCategory = e.category;
+      _isShared = e.isShared;
+      _splitMethod = e.splitMethod;
+      _payerId = e.payerId;
+      _participantIds = e.splits.where((s) => s.isParticipant).map((s) => s.memberId).toSet();
+      if (_splitMethod == SplitMethod.percentage) {
+        final total = e.amount;
+        for (final s in e.splits.where((s) => s.isParticipant)) {
+          final pct = total > 0 ? s.shareAmount / total * 100 : 0.0;
+          _percentages[s.memberId] = pct;
+          _pctCtrl[s.memberId] = TextEditingController(text: pct.toStringAsFixed(0));
+        }
+      }
+      if (_splitMethod == SplitMethod.custom) {
+        for (final s in e.splits.where((s) => s.isParticipant)) {
+          _customAmounts[s.memberId] = s.shareAmount;
+          _customCtrl[s.memberId] = TextEditingController(text: s.shareAmount.toStringAsFixed(0));
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
     _descController.dispose();
@@ -54,7 +86,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     final currentUser = ref.watch(currentUserProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('新增支出')),
+      appBar: AppBar(title: Text(_isEditing ? '編輯支出' : '新增支出')),
       body: members.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('錯誤：$e')),
@@ -63,7 +95,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
             return Center(child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.people_outline, size: 64, color: theme.colorScheme.primary.withOpacity(0.3)),
+                Icon(Icons.people_outline, size: 64, color: theme.colorScheme.primary.withValues(alpha:0.3)),
                 const Gap(16),
                 Text('尚未建立家庭成員', style: theme.textTheme.titleMedium),
                 const Gap(8),
@@ -210,7 +242,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                   if (amount <= 0) return const SizedBox.shrink();
                   final pCount = _participantIds.length;
                   return Card(
-                    color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                    color: theme.colorScheme.primaryContainer.withValues(alpha:0.3),
                     child: Padding(padding: const EdgeInsets.all(12), child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
@@ -246,8 +278,8 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
               // 儲存
               FilledButton.icon(
                 onPressed: () => _save(memberList),
-                icon: const Icon(Icons.add),
-                label: const Text('新增支出'),
+                icon: Icon(_isEditing ? Icons.save : Icons.add),
+                label: Text(_isEditing ? '儲存變更' : '新增支出'),
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
               ),
               const Gap(32),
@@ -305,17 +337,33 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
           break;
       }
     }
-    await ref.read(expenseNotifierProvider.notifier).addExpense(
-      date: _selectedDate, description: _descController.text.trim(),
-      amount: amount, category: _selectedCategory, isShared: _isShared,
-      splitMethod: _splitMethod, payerId: _payerId!,
-      payerName: nameMap[_payerId] ?? '', splits: splits,
-      note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
-      createdBy: currentUser?.id ?? _payerId!,
-    );
+    if (_isEditing) {
+      final existing = widget.existingExpense!;
+      existing
+        ..date = _selectedDate
+        ..description = _descController.text.trim()
+        ..amount = amount
+        ..category = _selectedCategory
+        ..isShared = _isShared
+        ..splitMethod = _splitMethod
+        ..payerId = _payerId!
+        ..payerName = nameMap[_payerId] ?? ''
+        ..splits = splits
+        ..note = _noteController.text.trim().isEmpty ? null : _noteController.text.trim();
+      await ref.read(expenseNotifierProvider.notifier).updateExpense(existing);
+    } else {
+      await ref.read(expenseNotifierProvider.notifier).addExpense(
+        date: _selectedDate, description: _descController.text.trim(),
+        amount: amount, category: _selectedCategory, isShared: _isShared,
+        splitMethod: _splitMethod, payerId: _payerId!,
+        payerName: nameMap[_payerId] ?? '', splits: splits,
+        note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+        createdBy: currentUser?.id ?? _payerId!,
+      );
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已新增支出'), behavior: SnackBarBehavior.floating));
+          SnackBar(content: Text(_isEditing ? '已更新支出' : '已新增支出'), behavior: SnackBarBehavior.floating));
       Navigator.pop(context);
     }
   }
