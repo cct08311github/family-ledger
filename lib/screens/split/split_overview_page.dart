@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../models/expense.dart';
 import '../../providers/balance_provider.dart';
 import '../../providers/expense_provider.dart';
 import '../../providers/member_provider.dart';

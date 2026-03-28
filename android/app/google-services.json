@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "137558877215",
+    "project_id": "family-ledger-784ed",
+    "storage_bucket": "family-ledger-784ed.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:137558877215:android:2081e90f21c2a7d296a12a",
+        "android_client_info": {
+          "package_name": "com.familyledger.family_ledger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3GMAey3nlGSfVw8S-y8A6y1yFQxE8zOc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
