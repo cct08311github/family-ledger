@@ -5,6 +5,7 @@ import '../models/enums.dart';
 import '../models/expense.dart';
 import '../models/split_detail.dart';
 import '../services/database_service.dart';
+import '../services/image_storage_service.dart';
 import 'balance_provider.dart';
 
 const _uuid = Uuid();
@@ -94,9 +95,13 @@ class ExpenseNotifier extends AsyncNotifier<void> {
   Future<void> deleteExpense(Expense expense) async {
     final isar = await DatabaseService.instance;
     final wasShared = expense.isShared;
+    final receiptPath = expense.receiptPath;
     await isar.writeTxn(() async {
       await isar.expenses.delete(expense.isarId);
     });
+    if (receiptPath != null) {
+      await ImageStorageService.deleteReceipt(receiptPath);
+    }
     if (wasShared) {
       await ref.read(balanceNotifierProvider.notifier).recalculate();
     }

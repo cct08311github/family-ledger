@@ -298,7 +298,11 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                     const Gap(8),
                     _CircleIconButton(
                       icon: Icons.close,
-                      onTap: () => setState(() => _receiptPath = null),
+                      onTap: () {
+                        final old = _receiptPath;
+                        setState(() => _receiptPath = null);
+                        if (old != null) ImageStorageService.deleteReceipt(old);
+                      },
                     ),
                   ])),
                 ]),
@@ -344,7 +348,9 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     if (source == null) return;
     final picked = await ImagePicker().pickImage(source: source, maxWidth: 1920, imageQuality: 85);
     if (picked == null) return;
+    final old = _receiptPath;
     final saved = await ImageStorageService.saveReceipt(picked.path);
+    if (old != null) await ImageStorageService.deleteReceipt(old);
     setState(() => _receiptPath = saved);
   }
 
