@@ -34,6 +34,18 @@
 	<string>從相簿選擇收據或發票照片以附加到支出記錄</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>語音記帳需要語音辨識來將語音轉為文字</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- TODO: 從 GoogleService-Info.plist 的 REVERSED_CLIENT_ID 取得 -->
+				<string>com.googleusercontent.apps.137558877215-PLACEHOLDER</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
