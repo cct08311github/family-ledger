@@ -49,13 +49,30 @@ class FirebaseSyncService {
 
   /// 將本地群組上傳到 Firestore
   static Future<void> syncGroupUp(FamilyGroup group) async {
+    final uid = currentUser?.uid;
     await _groupDoc(group.id).set({
       'name': group.name,
       'isPrimary': group.isPrimary,
       'createdAt': Timestamp.fromDate(group.createdAt),
       'updatedAt': Timestamp.fromDate(group.updatedAt),
-      'ownerUid': currentUser?.uid,
+      'ownerUid': uid,
+      // memberUids 用於 Security Rules 驗證成員身份
+      if (uid != null) 'memberUids': FieldValue.arrayUnion([uid]),
     }, SetOptions(merge: true));
+  }
+
+  /// 將 Firebase UID 加入群組成員清單（邀請加入時呼叫）
+  static Future<void> addMemberUid(String groupId, String uid) async {
+    await _groupDoc(groupId).update({
+      'memberUids': FieldValue.arrayUnion([uid]),
+    });
+  }
+
+  /// 將 Firebase UID 從群組移除
+  static Future<void> removeMemberUid(String groupId, String uid) async {
+    await _groupDoc(groupId).update({
+      'memberUids': FieldValue.arrayRemove([uid]),
+    });
   }
 
   // ── 成員同步 ──
@@ -201,7 +218,7 @@ class FirebaseSyncService {
     return code;
   }
 
-  /// 用邀請碼加入群組
+  /// 用邀請碼加入群組（同時將 UID 加入 memberUids）
   static Future<String?> joinGroupByCode(String code) async {
     final snap = await _groupsRef()
         .where('inviteCode', isEqualTo: code)
@@ -209,6 +226,11 @@ class FirebaseSyncService {
         .limit(1)
         .get();
     if (snap.docs.isEmpty) return null;
-    return snap.docs.first.id;
+    final groupId = snap.docs.first.id;
+    final uid = currentUser?.uid;
+    if (uid != null) {
+      await addMemberUid(groupId, uid);
+    }
+    return groupId;
   }
 }
