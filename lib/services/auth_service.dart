@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
-/// 認證服務（Apple Sign-In + Firebase Auth）
+/// 認證服務（Google Sign-In / Apple Sign-In + Firebase Auth）
 class AuthService {
   static FirebaseAuth get _auth => FirebaseAuth.instance;
 
@@ -74,6 +75,37 @@ class AuthService {
     }
 
     return user;
+  }
+
+  /// Google Sign-In
+  static Future<User?> signInWithGoogle() async {
+    final googleUser = await GoogleSignIn(scopes: ['email']).signIn();
+    if (googleUser == null) return null; // 使用者取消
+
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    // 如果目前是匿名登入，link 到 Google 帳號（保留原有資料）
+    UserCredential result;
+    if (currentUser != null && currentUser!.isAnonymous) {
+      try {
+        result = await currentUser!.linkWithCredential(credential);
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'credential-already-in-use') {
+          // 這個 Google 帳號已在別的裝置登入過 → 直接登入那個帳號
+          result = await _auth.signInWithCredential(credential);
+        } else {
+          rethrow;
+        }
+      }
+    } else {
+      result = await _auth.signInWithCredential(credential);
+    }
+
+    return result.user;
   }
 
   /// 匿名登入（fallback）

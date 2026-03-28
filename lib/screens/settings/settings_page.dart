@@ -196,12 +196,12 @@ class SettingsPage extends ConsumerWidget {
                   const Icon(Icons.check_circle, color: Colors.green, size: 16),
                   const Gap(6),
                   Expanded(child: Text(
-                    'Apple ID 已登入${AuthService.email != null ? '（${AuthService.email}）' : ''}',
+                    '已登入${AuthService.email != null ? '（${AuthService.email}）' : ''}',
                     style: theme.textTheme.bodySmall?.copyWith(color: Colors.green),
                   )),
                 ]),
                 const Gap(4),
-                Text('多台裝置登入同一個 Apple ID 即可自動同步',
+                Text('多台裝置登入同一個帳號即可自動同步',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
               ] else ...[
@@ -215,17 +215,22 @@ class SettingsPage extends ConsumerWidget {
                 ]),
                 const Gap(12),
                 SizedBox(width: double.infinity, child: FilledButton.icon(
-                  icon: const Icon(Icons.apple, size: 20),
-                  label: const Text('使用 Apple ID 登入'),
-                  onPressed: () => _signInWithApple(context),
+                  icon: Image.network(
+                    'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                    width: 20, height: 20,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 20),
+                  ),
+                  label: const Text('使用 Google 帳號登入'),
+                  onPressed: () => _signInWithGoogle(context),
                   style: FilledButton.styleFrom(
-                    backgroundColor: theme.colorScheme.onSurface,
-                    foregroundColor: theme.colorScheme.surface,
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black87,
                     minimumSize: const Size.fromHeight(48),
+                    side: BorderSide(color: Colors.grey.shade300),
                   ),
                 )),
                 const Gap(4),
-                Text('登入後可跨裝置同步，同 Apple ID 的所有裝置自動共享資料',
+                Text('登入後可跨裝置同步，同一帳號的所有裝置自動共享資料',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
               ],
@@ -343,16 +348,16 @@ class SettingsPage extends ConsumerWidget {
     ));
   }
 
-  void _signInWithApple(BuildContext context) async {
+  void _signInWithGoogle(BuildContext context) async {
     try {
-      final user = await AuthService.signInWithApple();
-      if (user == null) return;
+      final user = await AuthService.signInWithGoogle();
+      if (user == null) return; // 使用者取消
       // 重新同步（新 UID 可能不同）
       await FirebaseSyncService.initialSync();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Apple ID 登入成功${user.email != null ? "（${user.email}）" : ""}'),
+            content: Text('Google 登入成功${user.email != null ? "（${user.email}）" : ""}'),
             behavior: SnackBarBehavior.floating,
           ),
         );
