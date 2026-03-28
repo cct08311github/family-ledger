@@ -35,11 +35,16 @@ dependencies:
   pdf: ^3.10.8
   printing: ^5.12.0
   csv: ^6.0.0
-  share_plus: ^9.0.0
+  share_plus: ^12.0.1
 
   # 語音 / AI
   speech_to_text: ^6.6.0
   http: ^1.2.1
+
+  # Firebase（需先執行 flutterfire configure 產生 firebase_options.dart）
+  firebase_core: ^3.8.1
+  cloud_firestore: ^5.6.5
+  firebase_auth: ^5.4.3
 
   # 工具
   uuid: ^4.3.3

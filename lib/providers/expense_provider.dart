@@ -9,6 +9,7 @@ import '../services/image_storage_service.dart';
 import 'balance_provider.dart';
 import 'activity_log_provider.dart';
 import 'notification_provider.dart';
+import '../services/firebase_sync_service.dart';
 
 const _uuid = Uuid();
 
@@ -97,6 +98,10 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       description: '$payerName 新增支出「$description」NT\$ ${amount.toStringAsFixed(0)}',
       entityId: expense.id,
     );
+    // Firebase 同步（忽略失敗，本地優先）
+    if (FirebaseSyncService.isSignedIn && groupId != null) {
+      FirebaseSyncService.syncExpenseUp(groupId, expense).catchError((_) {});
+    }
     if (isShared) {
       await NotificationService.notifySplitExpense(
         expenseId: expense.id,
@@ -125,6 +130,10 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       description: '${expense.payerName} 編輯支出「${expense.description}」',
       entityId: expense.id,
     );
+    if (FirebaseSyncService.isSignedIn) {
+      final gid = expense.groupId;
+      FirebaseSyncService.syncExpenseUp(gid, expense).catchError((_) {});
+    }
     if (expense.isShared) {
       await ref.read(balanceNotifierProvider.notifier).recalculate();
     }
@@ -146,6 +155,9 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       description: '刪除支出「${expense.description}」NT\$ ${expense.amount.toStringAsFixed(0)}',
       entityId: expense.id,
     );
+    if (FirebaseSyncService.isSignedIn) {
+      FirebaseSyncService.deleteExpenseRemote(expense.groupId, expense.id).catchError((_) {});
+    }
     if (wasShared) {
       await ref.read(balanceNotifierProvider.notifier).recalculate();
     }
