@@ -134,7 +134,7 @@ class CategoryManagementPage extends ConsumerWidget {
               final icon = iconController.text.trim();
               if (name.isEmpty) return;
               if (isEdit) {
-                existing!
+                existing
                   ..name = name
                   ..icon = icon.isEmpty ? '📌' : icon;
                 ref.read(categoryNotifierProvider.notifier).updateCategory(existing);

@@ -102,7 +102,7 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       entityId: expense.id,
     );
     // 收據照片上傳到 Firebase Storage（本機路徑→URL）
-    if (FirebaseSyncService.isSignedIn && groupId != null && receiptPaths.isNotEmpty) {
+    if (FirebaseSyncService.isSignedIn && receiptPaths.isNotEmpty) {
       final urls = await ReceiptStorageService.uploadAll(
         localPaths: receiptPaths,
         groupId: groupId,
@@ -115,7 +115,7 @@ class ExpenseNotifier extends AsyncNotifier<void> {
       }
     }
     // Firebase 同步（忽略失敗，本地優先）
-    if (FirebaseSyncService.isSignedIn && groupId != null) {
+    if (FirebaseSyncService.isSignedIn) {
       FirebaseSyncService.syncExpenseUp(groupId, expense).catchError((_) {});
     }
     if (isShared) {
