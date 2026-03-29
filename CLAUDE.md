@@ -122,6 +122,7 @@ Three split methods (equal/percentage/custom), net debt calculation with settlem
 - **Firestore Rules**: `firestore.rules` — member-only access, owner-only delete, field validation, default-deny
 - **Storage Rules**: `storage.rules` — auth required, 10MB limit, image types only
 - **Invite code**: 8-char cryptographic random (Random.secure()), 24h expiry, max 5 uses
+- **`google-services.json`**: Firebase API key config — **never commit** (已從 Git history 移除，若重新取得需手動放置於 `android/app/` 並確認已 gitignore)
 - **Deserialization**: Defensive null checks + try-catch on all Firestore → Isar merges
 - **macOS sandbox**: Disabled (`com.apple.security.app-sandbox: false`) for Keychain access compatibility
 
