@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'services/database_service.dart';
@@ -27,6 +29,17 @@ void main() async {
   LogService.info(LogTag.APP, 'Initializing Firebase');
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   LogService.info(LogTag.APP, 'Firebase initialized');
+
+  // macOS: 設定 Firebase Auth 使用 app 本地 keychain（避免 keychain-error）
+  if (Platform.isMacOS) {
+    try {
+      const channel = MethodChannel('com.familyledger/auth_config');
+      await channel.invokeMethod('configureKeychainAccess');
+      LogService.info(LogTag.AUTH, 'macOS keychain access configured');
+    } catch (e) {
+      LogService.warning(LogTag.AUTH, 'macOS keychain config failed (non-fatal)', e);
+    }
+  }
 
   // 啟用 App Check 防止 API 濫用
   // Debug/本機 build 使用 debug provider，App Store release 才用 deviceCheck
