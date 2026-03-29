@@ -38,7 +38,7 @@ class _SplitOverviewPageState extends ConsumerState<SplitOverviewPage> {
 
     // 標題
     buf.writeln('📊 $monthLabel 家庭帳本結算報告');
-    buf.writeln('${'─' * 20}');
+    buf.writeln('─' * 20);
     buf.writeln();
 
     // 差額摘要
@@ -68,7 +68,7 @@ class _SplitOverviewPageState extends ConsumerState<SplitOverviewPage> {
     // 費用明細
     if (sharedExpenses.isNotEmpty) {
       buf.writeln('📝 共同支出明細（$monthLabel）：');
-      buf.writeln('${'─' * 20}');
+      buf.writeln('─' * 20);
       for (final e in sharedExpenses) {
         final dateStr = DateFormat('MM/dd').format(e.date);
         buf.writeln('$dateStr ${e.description}');

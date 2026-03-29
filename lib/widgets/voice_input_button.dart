@@ -68,7 +68,9 @@ class _VoiceInputButtonState extends State<VoiceInputButton>
         }
       },
       localeId: 'zh_TW',
-      listenMode: stt.ListenMode.dictation,
+      listenOptions: stt.SpeechListenOptions(
+        listenMode: stt.ListenMode.dictation,
+      ),
     );
   }
 
