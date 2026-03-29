@@ -51,7 +51,7 @@ void main() async {
       LogService.info(LogTag.AUTH, 'Waiting for auth session restore');
       final user = await AuthService.authStateChanges.first;
       if (user != null && !user.isAnonymous) {
-        LogService.info(LogTag.AUTH, 'Session restored: \${user.email ?? user.uid}');
+        LogService.info(LogTag.AUTH, 'Session restored: ${user.email ?? user.uid}');
         await FirebaseSyncService.initialSync();
       } else {
         LogService.info(LogTag.AUTH, 'No active session');
@@ -64,6 +64,6 @@ void main() async {
     runApp(const ProviderScope(child: FamilyLedgerApp()));
   }, (error, stack) {
     LogService.error(LogTag.APP, 'Uncaught async error', error, stack);
-    if (kDebugMode) debugPrint('Uncaught async error: \$error\n\$stack');
+    if (kDebugMode) debugPrint('Uncaught async error: $error\n$stack');
   });
 }
