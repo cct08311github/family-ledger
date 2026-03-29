@@ -11,6 +11,7 @@ import '../models/activity_log.dart';
 import '../models/app_notification.dart';
 import '../models/enums.dart';
 import 'package:uuid/uuid.dart';
+import 'log_service.dart';
 
 /// Isar 資料庫管理服務
 class DatabaseService {
@@ -44,8 +45,10 @@ class DatabaseService {
         directory: dir.path,
         name: 'family_ledger',
       );
+      LogService.info(LogTag.DB, 'Isar opened at ${dir.path}');
     } catch (e) {
       // Schema 不相容 → 刪除舊 DB 重建（開發階段可接受）
+      LogService.warning(LogTag.DB, 'Isar schema mismatch, rebuilding DB', e);
       await Isar.getInstance('family_ledger')?.close();
       final dbFile = File('${dir.path}/family_ledger.isar');
       if (await dbFile.exists()) await dbFile.delete();
@@ -56,6 +59,7 @@ class DatabaseService {
         directory: dir.path,
         name: 'family_ledger',
       );
+      LogService.info(LogTag.DB, 'Isar rebuilt successfully');
     }
 
     // 首次啟動：建立預設群組和類別
@@ -70,7 +74,11 @@ class DatabaseService {
 
     // 檢查是否已有群組
     final groupCount = await isar.familyGroups.count();
-    if (groupCount > 0) return;
+    if (groupCount > 0) {
+      LogService.debug(LogTag.DB, 'Existing data found ($groupCount groups)');
+      return;
+    }
+    LogService.info(LogTag.DB, 'First launch, seeding default data');
 
     final groupId = _uuid.v4();
     final now = DateTime.now();
