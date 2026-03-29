@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
 import 'package:isar/isar.dart';
 import '../models/expense.dart';
@@ -104,12 +105,14 @@ class FirebaseSyncService {
               await mergeExpenseFromRemote(data, change.doc.id);
             }
           }
-        } catch (_) {
+        } catch (e, st) {
           // 防禦性：單筆同步失敗不影響其他文件
+          if (kDebugMode) debugPrint('Expense sync error: $e\n$st');
         }
       }
-    }, onError: (_) {
+    }, onError: (e) {
       // Firestore 監聽錯誤（如 permission denied）靜默忽略，不導致閃退
+      if (kDebugMode) debugPrint('Expense listener error: $e');
     });
 
     // 監聽遠端結算變更
@@ -132,12 +135,14 @@ class FirebaseSyncService {
               await _mergeSettlementFromRemote(data, change.doc.id);
             }
           }
-        } catch (_) {
+        } catch (e, st) {
           // 防禦性：單筆同步失敗不影響其他文件
+          if (kDebugMode) debugPrint('Settlement sync error: $e\n$st');
         }
       }
-    }, onError: (_) {
+    }, onError: (e) {
       // Firestore 監聽錯誤（如 permission denied）靜默忽略，不導致閃退
+      if (kDebugMode) debugPrint('Settlement listener error: $e');
     });
   }
 
@@ -182,8 +187,9 @@ class FirebaseSyncService {
       await isar.writeTxn(() async {
         await isar.settlements.put(settlement);
       });
-    } catch (_) {
+    } catch (e, st) {
       // 防禦性：任何反序列化錯誤靜默忽略，不影響 app 運行
+      if (kDebugMode) debugPrint('Settlement deserialize error: $e\n$st');
     }
   }
 
@@ -359,8 +365,9 @@ class FirebaseSyncService {
       await isar.writeTxn(() async {
         await isar.expenses.put(expense);
       });
-    } catch (_) {
+    } catch (e, st) {
       // 防禦性：任何反序列化錯誤靜默忽略，不影響 app 運行
+      if (kDebugMode) debugPrint('Expense deserialize error: $e\n$st');
     }
   }
 
