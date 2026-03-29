@@ -12,3 +12,7 @@ PRODUCT_BUNDLE_IDENTIFIER = com.familyledger.familyLedger
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.familyledger. All rights reserved.
+
+// Development team and signing identity (required for Keychain access)
+DEVELOPMENT_TEAM = 63VUXLNBVU
+CODE_SIGN_IDENTITY = Apple Development

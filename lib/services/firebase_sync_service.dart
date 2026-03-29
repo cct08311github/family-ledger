@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'auth_service.dart';
+import 'log_service.dart';
 import 'package:isar/isar.dart';
 import '../models/expense.dart';
 import '../models/family_member.dart';
@@ -46,9 +47,13 @@ class FirebaseSyncService {
   /// 首次同步：把本地群組、成員、支出、結算上傳到 Firestore
   static Future<void> initialSync() async {
     if (!isSignedIn) return;
+    LogService.info(LogTag.SYNC, 'Initial sync started');
     final isar = await DatabaseService.instance;
     final groupId = await DatabaseService.getPrimaryGroupId();
-    if (groupId == null) return;
+    if (groupId == null) {
+      LogService.warning(LogTag.SYNC, 'No primary group found, skipping sync');
+      return;
+    }
 
     // 上傳群組
     final group = await isar.familyGroups.filter().idEqualTo(groupId).findFirst();
@@ -72,15 +77,18 @@ class FirebaseSyncService {
       await syncSettlementUp(groupId, s);
     }
 
+    LogService.info(LogTag.SYNC, 'Initial sync uploaded: ${members.length} members, ${expenses.length} expenses, ${settlements.length} settlements');
+
     // 開始即時監聽
     startRealtimeSync(groupId);
   }
 
   /// 開始即時監聽 Firestore 變更（支出 + 結算）
   static void startRealtimeSync(String groupId) {
-    if (_syncedGroupId == groupId) return; // 已在監聽
+    if (_syncedGroupId == groupId) return; // 已在監聯
     stopRealtimeSync();
     _syncedGroupId = groupId;
+    LogService.info(LogTag.SYNC, 'Realtime sync started for group $groupId');
 
     // 監聽遠端支出變更
     _expenseListener = _expensesRef(groupId)
@@ -95,6 +103,7 @@ class FirebaseSyncService {
             await isar.writeTxn(() async {
               await isar.expenses.delete(local.isarId);
             });
+            LogService.debug(LogTag.SYNC, 'Remote expense deleted: ${change.doc.id}');
           }
         } else {
           // 新增或修改 → merge 到本地
@@ -104,6 +113,8 @@ class FirebaseSyncService {
           }
         }
       }
+    }, onError: (e) {
+      LogService.error(LogTag.SYNC, 'Expense listener error', e);
     });
 
     // 監聽遠端結算變更
@@ -118,6 +129,7 @@ class FirebaseSyncService {
             await isar.writeTxn(() async {
               await isar.settlements.delete(local.isarId);
             });
+            LogService.debug(LogTag.SYNC, 'Remote settlement deleted: ${change.doc.id}');
           }
         } else {
           final data = change.doc.data();
@@ -126,6 +138,8 @@ class FirebaseSyncService {
           }
         }
       }
+    }, onError: (e) {
+      LogService.error(LogTag.SYNC, 'Settlement listener error', e);
     });
   }
 
@@ -136,17 +150,22 @@ class FirebaseSyncService {
     _expenseListener = null;
     _settlementListener = null;
     _syncedGroupId = null;
+    LogService.debug(LogTag.SYNC, 'Realtime sync stopped');
   }
 
   /// 將遠端結算寫入本地 Isar
   static Future<void> _mergeSettlementFromRemote(
       Map<String, dynamic> data, String settlementId) async {
+    try {
     final isar = await DatabaseService.instance;
     final local = await isar.settlements.filter().idEqualTo(settlementId).findFirst();
     final remoteCreatedAt = (data['createdAt'] as Timestamp).toDate();
 
     // 如果本地已有且較新，跳過
-    if (local != null && local.createdAt.isAfter(remoteCreatedAt)) return;
+    if (local != null && local.createdAt.isAfter(remoteCreatedAt)) {
+      LogService.debug(LogTag.SYNC, 'Settlement $settlementId: local is newer, skipping');
+      return;
+    }
 
     final settlement = Settlement()
       ..id = settlementId
@@ -165,6 +184,10 @@ class FirebaseSyncService {
     await isar.writeTxn(() async {
       await isar.settlements.put(settlement);
     });
+    LogService.debug(LogTag.SYNC, 'Settlement merged: $settlementId');
+    } catch (e, st) {
+      LogService.error(LogTag.SYNC, 'Failed to merge settlement $settlementId', e, st);
+    }
   }
 
   // ── 群組同步 ──
@@ -339,8 +362,9 @@ class FirebaseSyncService {
       await isar.writeTxn(() async {
         await isar.expenses.put(expense);
       });
-    } catch (_) {
-      // 防禦性：任何反序列化錯誤靜默忽略，不影響 app 運行
+      LogService.debug(LogTag.SYNC, 'Expense merged: $expenseId ($description)');
+    } catch (e, st) {
+      LogService.error(LogTag.SYNC, 'Failed to merge expense $expenseId', e, st);
     }
   }
 
