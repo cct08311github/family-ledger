@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
-import 'log_service.dart';
 import 'package:isar/isar.dart';
 import '../models/expense.dart';
 import '../models/family_member.dart';
@@ -47,13 +47,9 @@ class FirebaseSyncService {
   /// 首次同步：把本地群組、成員、支出、結算上傳到 Firestore
   static Future<void> initialSync() async {
     if (!isSignedIn) return;
-    LogService.info(LogTag.SYNC, 'Initial sync started');
     final isar = await DatabaseService.instance;
     final groupId = await DatabaseService.getPrimaryGroupId();
-    if (groupId == null) {
-      LogService.warning(LogTag.SYNC, 'No primary group found, skipping sync');
-      return;
-    }
+    if (groupId == null) return;
 
     // 上傳群組
     final group = await isar.familyGroups.filter().idEqualTo(groupId).findFirst();
@@ -77,44 +73,46 @@ class FirebaseSyncService {
       await syncSettlementUp(groupId, s);
     }
 
-    LogService.info(LogTag.SYNC, 'Initial sync uploaded: ${members.length} members, ${expenses.length} expenses, ${settlements.length} settlements');
-
     // 開始即時監聽
     startRealtimeSync(groupId);
   }
 
   /// 開始即時監聽 Firestore 變更（支出 + 結算）
   static void startRealtimeSync(String groupId) {
-    if (_syncedGroupId == groupId) return; // 已在監聯
+    if (_syncedGroupId == groupId) return; // 已在監聽
     stopRealtimeSync();
     _syncedGroupId = groupId;
-    LogService.info(LogTag.SYNC, 'Realtime sync started for group $groupId');
 
     // 監聽遠端支出變更
     _expenseListener = _expensesRef(groupId)
         .snapshots()
         .listen((snapshot) async {
       for (final change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.removed) {
-          // 遠端刪除 → 本地刪除
-          final isar = await DatabaseService.instance;
-          final local = await isar.expenses.filter().idEqualTo(change.doc.id).findFirst();
-          if (local != null) {
-            await isar.writeTxn(() async {
-              await isar.expenses.delete(local.isarId);
-            });
-            LogService.debug(LogTag.SYNC, 'Remote expense deleted: ${change.doc.id}');
+        try {
+          if (change.type == DocumentChangeType.removed) {
+            // 遠端刪除 → 本地刪除
+            final isar = await DatabaseService.instance;
+            final local = await isar.expenses.filter().idEqualTo(change.doc.id).findFirst();
+            if (local != null) {
+              await isar.writeTxn(() async {
+                await isar.expenses.delete(local.isarId);
+              });
+            }
+          } else {
+            // 新增或修改 → merge 到本地
+            final data = change.doc.data();
+            if (data != null) {
+              await mergeExpenseFromRemote(data, change.doc.id);
+            }
           }
-        } else {
-          // 新增或修改 → merge 到本地
-          final data = change.doc.data();
-          if (data != null) {
-            await mergeExpenseFromRemote(data, change.doc.id);
-          }
+        } catch (e, st) {
+          // 防禦性：單筆同步失敗不影響其他文件
+          if (kDebugMode) debugPrint('Expense sync error: $e\n$st');
         }
       }
     }, onError: (e) {
-      LogService.error(LogTag.SYNC, 'Expense listener error', e);
+      // Firestore 監聽錯誤（如 permission denied）靜默忽略，不導致閃退
+      if (kDebugMode) debugPrint('Expense listener error: $e');
     });
 
     // 監聽遠端結算變更
@@ -122,24 +120,29 @@ class FirebaseSyncService {
         .snapshots()
         .listen((snapshot) async {
       for (final change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.removed) {
-          final isar = await DatabaseService.instance;
-          final local = await isar.settlements.filter().idEqualTo(change.doc.id).findFirst();
-          if (local != null) {
-            await isar.writeTxn(() async {
-              await isar.settlements.delete(local.isarId);
-            });
-            LogService.debug(LogTag.SYNC, 'Remote settlement deleted: ${change.doc.id}');
+        try {
+          if (change.type == DocumentChangeType.removed) {
+            final isar = await DatabaseService.instance;
+            final local = await isar.settlements.filter().idEqualTo(change.doc.id).findFirst();
+            if (local != null) {
+              await isar.writeTxn(() async {
+                await isar.settlements.delete(local.isarId);
+              });
+            }
+          } else {
+            final data = change.doc.data();
+            if (data != null) {
+              await _mergeSettlementFromRemote(data, change.doc.id);
+            }
           }
-        } else {
-          final data = change.doc.data();
-          if (data != null) {
-            await _mergeSettlementFromRemote(data, change.doc.id);
-          }
+        } catch (e, st) {
+          // 防禦性：單筆同步失敗不影響其他文件
+          if (kDebugMode) debugPrint('Settlement sync error: $e\n$st');
         }
       }
     }, onError: (e) {
-      LogService.error(LogTag.SYNC, 'Settlement listener error', e);
+      // Firestore 監聽錯誤（如 permission denied）靜默忽略，不導致閃退
+      if (kDebugMode) debugPrint('Settlement listener error: $e');
     });
   }
 
@@ -150,43 +153,43 @@ class FirebaseSyncService {
     _expenseListener = null;
     _settlementListener = null;
     _syncedGroupId = null;
-    LogService.debug(LogTag.SYNC, 'Realtime sync stopped');
   }
 
   /// 將遠端結算寫入本地 Isar
+  /// 含防禦性型別檢查，避免格式錯誤的資料 crash app
   static Future<void> _mergeSettlementFromRemote(
       Map<String, dynamic> data, String settlementId) async {
     try {
-    final isar = await DatabaseService.instance;
-    final local = await isar.settlements.filter().idEqualTo(settlementId).findFirst();
-    final remoteCreatedAt = (data['createdAt'] as Timestamp).toDate();
+      final isar = await DatabaseService.instance;
+      final local = await isar.settlements.filter().idEqualTo(settlementId).findFirst();
 
-    // 如果本地已有且較新，跳過
-    if (local != null && local.createdAt.isAfter(remoteCreatedAt)) {
-      LogService.debug(LogTag.SYNC, 'Settlement $settlementId: local is newer, skipping');
-      return;
-    }
+      final createdAtRaw = data['createdAt'];
+      if (createdAtRaw is! Timestamp) return; // 缺少必要欄位，跳過
+      final remoteCreatedAt = createdAtRaw.toDate();
 
-    final settlement = Settlement()
-      ..id = settlementId
-      ..groupId = (await DatabaseService.getPrimaryGroupId()) ?? ''
-      ..fromMemberId = data['fromMemberId'] as String
-      ..fromMemberName = data['fromMemberName'] as String
-      ..toMemberId = data['toMemberId'] as String
-      ..toMemberName = data['toMemberName'] as String
-      ..amount = (data['amount'] as num).toDouble()
-      ..note = data['note'] as String?
-      ..date = (data['date'] as Timestamp).toDate()
-      ..createdAt = remoteCreatedAt;
+      // 如果本地已有且較新，跳過
+      if (local != null && local.createdAt.isAfter(remoteCreatedAt)) return;
 
-    if (local != null) settlement.isarId = local.isarId;
+      final settlement = Settlement()
+        ..id = settlementId
+        ..groupId = (await DatabaseService.getPrimaryGroupId()) ?? ''
+        ..fromMemberId = (data['fromMemberId'] as String?) ?? ''
+        ..fromMemberName = (data['fromMemberName'] as String?) ?? ''
+        ..toMemberId = (data['toMemberId'] as String?) ?? ''
+        ..toMemberName = (data['toMemberName'] as String?) ?? ''
+        ..amount = (data['amount'] as num?)?.toDouble() ?? 0
+        ..note = data['note'] as String?
+        ..date = (data['date'] as Timestamp?)?.toDate() ?? DateTime.now()
+        ..createdAt = remoteCreatedAt;
 
-    await isar.writeTxn(() async {
-      await isar.settlements.put(settlement);
-    });
-    LogService.debug(LogTag.SYNC, 'Settlement merged: $settlementId');
+      if (local != null) settlement.isarId = local.isarId;
+
+      await isar.writeTxn(() async {
+        await isar.settlements.put(settlement);
+      });
     } catch (e, st) {
-      LogService.error(LogTag.SYNC, 'Failed to merge settlement $settlementId', e, st);
+      // 防禦性：任何反序列化錯誤靜默忽略，不影響 app 運行
+      if (kDebugMode) debugPrint('Settlement deserialize error: $e\n$st');
     }
   }
 
@@ -362,9 +365,9 @@ class FirebaseSyncService {
       await isar.writeTxn(() async {
         await isar.expenses.put(expense);
       });
-      LogService.debug(LogTag.SYNC, 'Expense merged: $expenseId ($description)');
     } catch (e, st) {
-      LogService.error(LogTag.SYNC, 'Failed to merge expense $expenseId', e, st);
+      // 防禦性：任何反序列化錯誤靜默忽略，不影響 app 運行
+      if (kDebugMode) debugPrint('Expense deserialize error: $e\n$st');
     }
   }
 

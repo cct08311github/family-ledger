@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,65 +16,54 @@ import 'firebase_options.dart';
 import 'app.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  LogService.info(LogTag.APP, 'App starting...');
-
-  // 初始化繁體中文日期格式
-  await initializeDateFormatting('zh_TW', null);
-
-  // 初始化 Isar 資料庫
-  LogService.info(LogTag.DB, 'Initializing Isar database');
-  await DatabaseService.instance;
-
-  // 初始化 Firebase
-  LogService.info(LogTag.APP, 'Initializing Firebase');
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  LogService.info(LogTag.APP, 'Firebase initialized');
-
-  // macOS: 設定 Firebase Auth 使用 app 本地 keychain（避免 keychain-error）
-  if (Platform.isMacOS) {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    LogService.info(LogTag.APP, 'App starting...');
+    FlutterError.onError = (details) {
+      LogService.error(LogTag.APP, 'Flutter error', details.exception, details.stack);
+      FlutterError.presentError(details);
+    };
+    await initializeDateFormatting('zh_TW', null);
+    LogService.info(LogTag.DB, 'Initializing Isar database');
+    await DatabaseService.instance;
+    LogService.info(LogTag.APP, 'Initializing Firebase');
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    LogService.info(LogTag.APP, 'Firebase initialized');
+    if (Platform.isMacOS) {
+      try {
+        const channel = MethodChannel('com.familyledger/auth_config');
+        await channel.invokeMethod('configureKeychainAccess');
+        LogService.info(LogTag.AUTH, 'macOS keychain configured');
+      } catch (e) {
+        LogService.warning(LogTag.AUTH, 'macOS keychain config failed (non-fatal)', e);
+      }
+    }
     try {
-      const channel = MethodChannel('com.familyledger/auth_config');
-      await channel.invokeMethod('configureKeychainAccess');
-      LogService.info(LogTag.AUTH, 'macOS keychain access configured');
-    } catch (e) {
-      LogService.warning(LogTag.AUTH, 'macOS keychain config failed (non-fatal)', e);
+      await FirebaseAppCheck.instance.activate(
+        appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+        androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+      );
+      LogService.info(LogTag.APP, 'App Check activated (${kDebugMode ? "debug" : "release"} mode)');
+    } catch (e, st) {
+      LogService.error(LogTag.APP, 'App Check activation failed', e, st);
     }
-  }
-
-  // 啟用 App Check 防止 API 濫用
-  // Debug/本機 build 使用 debug provider，App Store release 才用 deviceCheck
-  try {
-    await FirebaseAppCheck.instance.activate(
-      appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
-      androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-    );
-    LogService.info(LogTag.APP, 'App Check activated (${kDebugMode ? "debug" : "release"} mode)');
-  } catch (e, st) {
-    LogService.error(LogTag.APP, 'App Check activation failed', e, st);
-  }
-
-  // 等待 Firebase Auth 恢復 session，然後同步
-  try {
-    LogService.info(LogTag.AUTH, 'Waiting for auth session restore');
-    final user = await AuthService.authStateChanges.first;
-    if (user != null && !user.isAnonymous) {
-      LogService.info(LogTag.AUTH, 'Session restored: ${user.email ?? user.uid}');
-      await FirebaseSyncService.initialSync();
-    } else {
-      LogService.info(LogTag.AUTH, 'No active session');
+    try {
+      LogService.info(LogTag.AUTH, 'Waiting for auth session restore');
+      final user = await AuthService.authStateChanges.first;
+      if (user != null && !user.isAnonymous) {
+        LogService.info(LogTag.AUTH, 'Session restored: \${user.email ?? user.uid}');
+        await FirebaseSyncService.initialSync();
+      } else {
+        LogService.info(LogTag.AUTH, 'No active session');
+      }
+    } catch (e, st) {
+      LogService.error(LogTag.SYNC, 'Initial sync failed', e, st);
     }
-  } catch (e, st) {
-    LogService.error(LogTag.SYNC, 'Initial sync failed', e, st);
-  }
-
-  // 初始化本地推播通知
-  await LocalNotificationService.init();
-  LogService.info(LogTag.APP, 'App startup complete');
-
-  runApp(
-    const ProviderScope(
-      child: FamilyLedgerApp(),
-    ),
-  );
+    await LocalNotificationService.init();
+    LogService.info(LogTag.APP, 'App startup complete');
+    runApp(const ProviderScope(child: FamilyLedgerApp()));
+  }, (error, stack) {
+    LogService.error(LogTag.APP, 'Uncaught async error', error, stack);
+    if (kDebugMode) debugPrint('Uncaught async error: \$error\n\$stack');
+  });
 }
