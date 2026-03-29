@@ -109,7 +109,8 @@ Three split methods (equal/percentage/custom), net debt calculation with settlem
 - **Theme**: `CardThemeData` (not `CardTheme`) in Flutter 3.41+. Theme switching via `ThemeSettingsNotifier` with 6 color schemes.
 - **DB writes**: Always wrap in `isar.writeTxn(() async { ... })`
 - **IDs**: UUID v4 for all entity IDs, `Isar.autoIncrement` for isarId
-- **Logging**: All CRUD operations must call `ActivityLogger.log()` after Isar write
+- **Logging**: All CRUD operations must call `ActivityLogger.log()` (from
+  `lib/providers/activity_log_provider.dart`) after Isar write
 - **Firebase sync**: All CRUD providers call `FirebaseSyncService.sync*Up()` after Isar write, wrapped in `.catchError((_) {})`
 - **Photos**: Up to 10 receipt photos per expense (`receiptPaths` list), backward compatible with old `receiptPath` field
 - **API Key storage**: Sensitive keys (Gemini) stored via `flutter_secure_storage` (Keychain), never in plain JSON
