@@ -10,8 +10,10 @@ import '../auth/login_page.dart';
 import '../../app.dart';
 import '../../services/database_service.dart';
 import '../../providers/theme_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'category_management_page.dart';
 import 'activity_log_page.dart';
+import 'debug_log_page.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -180,6 +182,17 @@ class SettingsPage extends ConsumerWidget {
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const ActivityLogPage())),
             ),
+            if (kDebugMode) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.terminal),
+                title: const Text('Debug Log'),
+                subtitle: const Text('技術除錯記錄'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const DebugLogPage())),
+              ),
+            ],
           ])),
           const Gap(16),
           // 帳號

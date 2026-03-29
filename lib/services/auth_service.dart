@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'log_service.dart';
 
 /// 認證服務（Google Sign-In / Apple Sign-In + Firebase Auth）
 class AuthService {
@@ -26,6 +27,7 @@ class AuthService {
 
   /// Apple Sign-In
   static Future<User?> signInWithApple() async {
+    LogService.info(LogTag.AUTH, 'Apple Sign-In started');
     // 產生 nonce 防止 replay attack
     final rawNonce = _generateNonce();
     final nonce = _sha256ofString(rawNonce);
@@ -49,12 +51,15 @@ class AuthService {
     UserCredential result;
     if (currentUser != null && currentUser!.isAnonymous) {
       try {
+        LogService.debug(LogTag.AUTH, 'Linking anonymous account to Apple');
         result = await currentUser!.linkWithCredential(oauthCredential);
       } on FirebaseAuthException catch (e) {
         if (e.code == 'credential-already-in-use') {
+          LogService.warning(LogTag.AUTH, 'Apple credential already in use, signing in directly');
           // 這個 Apple ID 已在別的裝置登入過 → 直接登入那個帳號
           result = await _auth.signInWithCredential(oauthCredential);
         } else {
+          LogService.error(LogTag.AUTH, 'Apple Sign-In link failed', e);
           rethrow;
         }
       }
@@ -74,19 +79,25 @@ class AuthService {
       }
     }
 
+    LogService.info(LogTag.AUTH, 'Apple Sign-In success: ${user?.email ?? user?.uid}');
     return user;
   }
 
   /// Google Sign-In（含 serverClientId 給 iOS/macOS 使用）
   static Future<User?> signInWithGoogle() async {
+    LogService.info(LogTag.AUTH, 'Google Sign-In started');
     final googleSignIn = GoogleSignIn(
       scopes: ['email'],
       serverClientId: '137558877215-85ak3t2lbne5iuad4aoop4fadn2m4p7u.apps.googleusercontent.com',
     );
 
     final googleUser = await googleSignIn.signIn();
-    if (googleUser == null) return null; // 使用者取消
+    if (googleUser == null) {
+      LogService.info(LogTag.AUTH, 'Google Sign-In cancelled by user');
+      return null;
+    }
 
+    LogService.debug(LogTag.AUTH, 'Google auth: ${googleUser.email}');
     final googleAuth = await googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
@@ -97,11 +108,14 @@ class AuthService {
     UserCredential result;
     if (currentUser != null && currentUser!.isAnonymous) {
       try {
+        LogService.debug(LogTag.AUTH, 'Linking anonymous account to Google');
         result = await currentUser!.linkWithCredential(credential);
       } on FirebaseAuthException catch (e) {
         if (e.code == 'credential-already-in-use') {
+          LogService.warning(LogTag.AUTH, 'Google credential already in use, signing in directly');
           result = await _auth.signInWithCredential(credential);
         } else {
+          LogService.error(LogTag.AUTH, 'Google Sign-In link failed', e);
           rethrow;
         }
       }
@@ -109,6 +123,7 @@ class AuthService {
       result = await _auth.signInWithCredential(credential);
     }
 
+    LogService.info(LogTag.AUTH, 'Google Sign-In success: ${result.user?.email ?? result.user?.uid}');
     return result.user;
   }
 
@@ -120,7 +135,9 @@ class AuthService {
 
   /// 登出
   static Future<void> signOut() async {
+    LogService.info(LogTag.AUTH, 'Signing out: ${currentUser?.email ?? currentUser?.uid}');
     await _auth.signOut();
+    LogService.info(LogTag.AUTH, 'Signed out');
   }
 
   /// 監聽登入狀態變更
