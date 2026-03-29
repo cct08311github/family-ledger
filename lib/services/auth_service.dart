@@ -91,39 +91,65 @@ class AuthService {
       serverClientId: '137558877215-85ak3t2lbne5iuad4aoop4fadn2m4p7u.apps.googleusercontent.com',
     );
 
-    final googleUser = await googleSignIn.signIn();
+    // Step 1: 開啟 Google 登入畫面
+    LogService.debug(LogTag.AUTH, 'Step 1: Opening Google Sign-In popup');
+    final GoogleSignInAccount? googleUser;
+    try {
+      googleUser = await googleSignIn.signIn();
+    } catch (e, st) {
+      LogService.error(LogTag.AUTH, 'Step 1 FAILED: Google Sign-In popup error (${e.runtimeType})', e, st);
+      rethrow;
+    }
     if (googleUser == null) {
-      LogService.info(LogTag.AUTH, 'Google Sign-In cancelled by user');
+      LogService.info(LogTag.AUTH, 'Step 1: Google Sign-In cancelled by user');
       return null;
     }
+    LogService.info(LogTag.AUTH, 'Step 1 OK: Google user = ${googleUser.email}');
 
-    LogService.debug(LogTag.AUTH, 'Google auth: ${googleUser.email}');
-    final googleAuth = await googleUser.authentication;
+    // Step 2: 取得 Google 認證 token
+    LogService.debug(LogTag.AUTH, 'Step 2: Getting Google auth tokens');
+    final GoogleSignInAuthentication googleAuth;
+    try {
+      googleAuth = await googleUser.authentication;
+    } catch (e, st) {
+      LogService.error(LogTag.AUTH, 'Step 2 FAILED: Google auth token error (${e.runtimeType})', e, st);
+      rethrow;
+    }
+    LogService.info(LogTag.AUTH, 'Step 2 OK: accessToken=${googleAuth.accessToken != null ? "present" : "NULL"}, idToken=${googleAuth.idToken != null ? "present" : "NULL"}');
+
+    // Step 3: 建立 Firebase credential
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
+    LogService.debug(LogTag.AUTH, 'Step 3: Firebase credential created');
 
-    // 如果目前是匿名登入，先嘗試 link（保留原有資料）
+    // Step 4: Firebase signInWithCredential
+    LogService.debug(LogTag.AUTH, 'Step 4: Calling Firebase signInWithCredential');
     UserCredential result;
     if (currentUser != null && currentUser!.isAnonymous) {
       try {
-        LogService.debug(LogTag.AUTH, 'Linking anonymous account to Google');
+        LogService.debug(LogTag.AUTH, 'Step 4: Linking anonymous account to Google');
         result = await currentUser!.linkWithCredential(credential);
-      } on FirebaseAuthException catch (e) {
+      } on FirebaseAuthException catch (e, st) {
         if (e.code == 'credential-already-in-use') {
           LogService.warning(LogTag.AUTH, 'Google credential already in use, signing in directly');
           result = await _auth.signInWithCredential(credential);
         } else {
-          LogService.error(LogTag.AUTH, 'Google Sign-In link failed', e);
+          LogService.error(LogTag.AUTH, 'Step 4 FAILED: Firebase link error [${e.code}]', e, st);
           rethrow;
         }
       }
     } else {
-      result = await _auth.signInWithCredential(credential);
+      try {
+        result = await _auth.signInWithCredential(credential);
+      } catch (e, st) {
+        LogService.error(LogTag.AUTH, 'Step 4 FAILED: Firebase signIn error (${e.runtimeType})', e, st);
+        rethrow;
+      }
     }
 
-    LogService.info(LogTag.AUTH, 'Google Sign-In success: ${result.user?.email ?? result.user?.uid}');
+    LogService.info(LogTag.AUTH, 'Step 4 OK: Firebase sign-in success: ${result.user?.email ?? result.user?.uid}');
     return result.user;
   }
 
