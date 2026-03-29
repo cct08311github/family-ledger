@@ -87,23 +87,29 @@ class FirebaseSyncService {
         .snapshots()
         .listen((snapshot) async {
       for (final change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.removed) {
-          // 遠端刪除 → 本地刪除
-          final isar = await DatabaseService.instance;
-          final local = await isar.expenses.filter().idEqualTo(change.doc.id).findFirst();
-          if (local != null) {
-            await isar.writeTxn(() async {
-              await isar.expenses.delete(local.isarId);
-            });
+        try {
+          if (change.type == DocumentChangeType.removed) {
+            // 遠端刪除 → 本地刪除
+            final isar = await DatabaseService.instance;
+            final local = await isar.expenses.filter().idEqualTo(change.doc.id).findFirst();
+            if (local != null) {
+              await isar.writeTxn(() async {
+                await isar.expenses.delete(local.isarId);
+              });
+            }
+          } else {
+            // 新增或修改 → merge 到本地
+            final data = change.doc.data();
+            if (data != null) {
+              await mergeExpenseFromRemote(data, change.doc.id);
+            }
           }
-        } else {
-          // 新增或修改 → merge 到本地
-          final data = change.doc.data();
-          if (data != null) {
-            await mergeExpenseFromRemote(data, change.doc.id);
-          }
+        } catch (_) {
+          // 防禦性：單筆同步失敗不影響其他文件
         }
       }
+    }, onError: (_) {
+      // Firestore 監聽錯誤（如 permission denied）靜默忽略，不導致閃退
     });
 
     // 監聽遠端結算變更
@@ -111,21 +117,27 @@ class FirebaseSyncService {
         .snapshots()
         .listen((snapshot) async {
       for (final change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.removed) {
-          final isar = await DatabaseService.instance;
-          final local = await isar.settlements.filter().idEqualTo(change.doc.id).findFirst();
-          if (local != null) {
-            await isar.writeTxn(() async {
-              await isar.settlements.delete(local.isarId);
-            });
+        try {
+          if (change.type == DocumentChangeType.removed) {
+            final isar = await DatabaseService.instance;
+            final local = await isar.settlements.filter().idEqualTo(change.doc.id).findFirst();
+            if (local != null) {
+              await isar.writeTxn(() async {
+                await isar.settlements.delete(local.isarId);
+              });
+            }
+          } else {
+            final data = change.doc.data();
+            if (data != null) {
+              await _mergeSettlementFromRemote(data, change.doc.id);
+            }
           }
-        } else {
-          final data = change.doc.data();
-          if (data != null) {
-            await _mergeSettlementFromRemote(data, change.doc.id);
-          }
+        } catch (_) {
+          // 防禦性：單筆同步失敗不影響其他文件
         }
       }
+    }, onError: (_) {
+      // Firestore 監聽錯誤（如 permission denied）靜默忽略，不導致閃退
     });
   }
 
@@ -139,32 +151,40 @@ class FirebaseSyncService {
   }
 
   /// 將遠端結算寫入本地 Isar
+  /// 含防禦性型別檢查，避免格式錯誤的資料 crash app
   static Future<void> _mergeSettlementFromRemote(
       Map<String, dynamic> data, String settlementId) async {
-    final isar = await DatabaseService.instance;
-    final local = await isar.settlements.filter().idEqualTo(settlementId).findFirst();
-    final remoteCreatedAt = (data['createdAt'] as Timestamp).toDate();
+    try {
+      final isar = await DatabaseService.instance;
+      final local = await isar.settlements.filter().idEqualTo(settlementId).findFirst();
 
-    // 如果本地已有且較新，跳過
-    if (local != null && local.createdAt.isAfter(remoteCreatedAt)) return;
+      final createdAtRaw = data['createdAt'];
+      if (createdAtRaw is! Timestamp) return; // 缺少必要欄位，跳過
+      final remoteCreatedAt = createdAtRaw.toDate();
 
-    final settlement = Settlement()
-      ..id = settlementId
-      ..groupId = (await DatabaseService.getPrimaryGroupId()) ?? ''
-      ..fromMemberId = data['fromMemberId'] as String
-      ..fromMemberName = data['fromMemberName'] as String
-      ..toMemberId = data['toMemberId'] as String
-      ..toMemberName = data['toMemberName'] as String
-      ..amount = (data['amount'] as num).toDouble()
-      ..note = data['note'] as String?
-      ..date = (data['date'] as Timestamp).toDate()
-      ..createdAt = remoteCreatedAt;
+      // 如果本地已有且較新，跳過
+      if (local != null && local.createdAt.isAfter(remoteCreatedAt)) return;
 
-    if (local != null) settlement.isarId = local.isarId;
+      final settlement = Settlement()
+        ..id = settlementId
+        ..groupId = (await DatabaseService.getPrimaryGroupId()) ?? ''
+        ..fromMemberId = (data['fromMemberId'] as String?) ?? ''
+        ..fromMemberName = (data['fromMemberName'] as String?) ?? ''
+        ..toMemberId = (data['toMemberId'] as String?) ?? ''
+        ..toMemberName = (data['toMemberName'] as String?) ?? ''
+        ..amount = (data['amount'] as num?)?.toDouble() ?? 0
+        ..note = data['note'] as String?
+        ..date = (data['date'] as Timestamp?)?.toDate() ?? DateTime.now()
+        ..createdAt = remoteCreatedAt;
 
-    await isar.writeTxn(() async {
-      await isar.settlements.put(settlement);
-    });
+      if (local != null) settlement.isarId = local.isarId;
+
+      await isar.writeTxn(() async {
+        await isar.settlements.put(settlement);
+      });
+    } catch (_) {
+      // 防禦性：任何反序列化錯誤靜默忽略，不影響 app 運行
+    }
   }
 
   // ── 群組同步 ──
