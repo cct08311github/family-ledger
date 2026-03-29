@@ -64,11 +64,34 @@ class _AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<_AuthGate> {
-  bool _isLoggedIn = AuthService.isSignedIn;
+  bool? _isLoggedIn; // null = 載入中
+
+  @override
+  void initState() {
+    super.initState();
+    // 監聽 Firebase Auth 狀態（處理 app 重啟時的 session 恢復）
+    AuthService.authStateChanges.first.then((user) {
+      if (mounted) {
+        setState(() => _isLoggedIn = user != null && !user.isAnonymous);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isLoggedIn) {
+    // 載入中：顯示 splash
+    if (_isLoggedIn == null) {
+      return Scaffold(
+        body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.account_balance_wallet, size: 64,
+              color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 16),
+          const CircularProgressIndicator(),
+        ])),
+      );
+    }
+
+    if (!_isLoggedIn!) {
       return LoginPage(
         onLoginSuccess: () => setState(() => _isLoggedIn = true),
       );
