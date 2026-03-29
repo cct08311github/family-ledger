@@ -34,9 +34,10 @@ void main() async {
     // App Check 啟用失敗不阻擋 app 啟動
   }
 
-  // 已登入 Google → 自動同步
+  // 等待 Firebase Auth 恢復 session，然後同步
   try {
-    if (AuthService.isSignedIn) {
+    final user = await AuthService.authStateChanges.first;
+    if (user != null && !user.isAnonymous) {
       await FirebaseSyncService.initialSync();
     }
   } catch (_) {
