@@ -44,5 +44,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Firebase config (contains API keys - NEVER commit)
+/android/app/google-services.json
+
 # Isar generated files
 **/*.g.dart
