@@ -1,7 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import '../../services/auth_service.dart';
 import '../../services/firebase_sync_service.dart';
+import '../../services/log_service.dart';
+import '../settings/debug_log_page.dart';
 
 /// 登入頁面（未登入 Google 前不能使用 app）
 class LoginPage extends StatefulWidget {
@@ -18,6 +22,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _signIn() async {
     setState(() { _isLoading = true; _error = null; });
+    LogService.info(LogTag.AUTH, 'Login button pressed');
     try {
       final user = await AuthService.signInWithGoogle();
       if (user == null) {
@@ -25,10 +30,15 @@ class _LoginPageState extends State<LoginPage> {
         return; // 使用者取消
       }
       // 登入成功，同步資料
+      LogService.info(LogTag.AUTH, 'Login success, starting initial sync');
       await FirebaseSyncService.initialSync();
       widget.onLoginSuccess();
-    } catch (e) {
-      setState(() { _isLoading = false; _error = '$e'; });
+    } catch (e, st) {
+      LogService.error(LogTag.AUTH, 'Login failed (${e.runtimeType})', e, st);
+      setState(() {
+        _isLoading = false;
+        _error = '${e.runtimeType}: $e';
+      });
     }
   }
 
@@ -72,14 +82,59 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               if (_error != null) ...[
                 const Gap(16),
-                Text(_error!, style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
-                    textAlign: TextAlign.center),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('登入失敗', style: TextStyle(
+                        color: theme.colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.bold, fontSize: 13)),
+                      const Gap(4),
+                      SelectableText(_error!, style: TextStyle(
+                        color: theme.colorScheme.onErrorContainer, fontSize: 12)),
+                      const Gap(8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          icon: const Icon(Icons.copy, size: 14),
+                          label: const Text('複製錯誤', style: TextStyle(fontSize: 12)),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: _error!));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('已複製'), duration: Duration(seconds: 1)),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
               const Gap(24),
               Text('登入後可在多台裝置間同步資料',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
                   textAlign: TextAlign.center),
+              // Debug Log 入口（僅 debug mode）
+              if (kDebugMode) ...[
+                const Gap(32),
+                TextButton.icon(
+                  icon: Icon(Icons.bug_report_outlined, size: 16,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                  label: Text('Debug Log', style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4))),
+                  onPressed: () {
+                    Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const DebugLogPage()));
+                  },
+                ),
+              ],
             ],
           ),
         ),
