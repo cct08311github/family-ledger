@@ -39,10 +39,10 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   SplitMethod _splitMethod = SplitMethod.equal;
   String? _payerId;
   Set<String> _participantIds = {};
-  Map<String, double> _percentages = {};
-  Map<String, double> _customAmounts = {};
-  Map<String, TextEditingController> _pctCtrl = {};
-  Map<String, TextEditingController> _customCtrl = {};
+  final Map<String, double> _percentages = {};
+  final Map<String, double> _customAmounts = {};
+  final Map<String, TextEditingController> _pctCtrl = {};
+  final Map<String, TextEditingController> _customCtrl = {};
   PaymentMethod _paymentMethod = PaymentMethod.cash;
   List<String> _receiptPaths = [];
   static const _maxPhotos = 10;
@@ -96,8 +96,12 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     _descController.dispose();
     _amountController.dispose();
     _noteController.dispose();
-    _pctCtrl.values.forEach((c) => c.dispose());
-    _customCtrl.values.forEach((c) => c.dispose());
+    for (final c in _pctCtrl.values) {
+      c.dispose();
+    }
+    for (final c in _customCtrl.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 

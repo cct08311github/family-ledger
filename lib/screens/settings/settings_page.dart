@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import '../../providers/member_provider.dart';
 import '../../services/app_settings_service.dart';
-import '../../services/firebase_sync_service.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_page.dart';
 import '../../app.dart';
-import '../../services/database_service.dart';
 import '../../providers/theme_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'category_management_page.dart';
@@ -350,99 +347,6 @@ class SettingsPage extends ConsumerWidget {
         (route) => false,
       );
     }
-  }
-
-  // ── 以下方法保留但不再在 UI 中顯示 ──
-
-  void _generateInviteCode(BuildContext context) async {
-    final groupId = await DatabaseService.getPrimaryGroupId();
-    if (groupId == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('尚未建立群組'), behavior: SnackBarBehavior.floating));
-      }
-      return;
-    }
-    try {
-      final code = await FirebaseSyncService.generateInviteCode(groupId);
-      if (!context.mounted) return;
-      showDialog(context: context, builder: (ctx) => AlertDialog(
-        title: const Text('邀請碼'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('把這組邀請碼傳給家人，在他們的裝置上輸入即可加入同一個群組。'),
-          const Gap(16),
-          SelectableText(
-            code,
-            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4),
-            textAlign: TextAlign.center,
-          ),
-          const Gap(8),
-          const Text('有效期限：24 小時', style: TextStyle(color: Colors.grey)),
-        ]),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: code));
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                const SnackBar(content: Text('已複製'), behavior: SnackBarBehavior.floating));
-            },
-            child: const Text('複製'),
-          ),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('關閉')),
-        ],
-      ));
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('產生邀請碼失敗：$e'), behavior: SnackBarBehavior.floating));
-      }
-    }
-  }
-
-  void _joinByInviteCode(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController();
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('加入群組'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('輸入家人給你的邀請碼，加入同一個家庭群組。'),
-        const Gap(16),
-        TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: '6 碼邀請碼',
-            border: OutlineInputBorder(),
-          ),
-          textCapitalization: TextCapitalization.characters,
-          autofocus: true,
-        ),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-        FilledButton(onPressed: () async {
-          final code = controller.text.trim().toUpperCase();
-          if (code.isEmpty) return;
-          try {
-            final groupId = await FirebaseSyncService.joinGroupByCode(code);
-            if (!ctx.mounted) return;
-            if (groupId == null) {
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                const SnackBar(content: Text('邀請碼無效或已過期'), behavior: SnackBarBehavior.floating));
-              return;
-            }
-            // 開始監聽新群組
-            FirebaseSyncService.startRealtimeSync(groupId);
-            Navigator.pop(ctx);
-            ScaffoldMessenger.of(ctx).showSnackBar(
-              const SnackBar(content: Text('已成功加入群組！資料同步中...'), behavior: SnackBarBehavior.floating));
-          } catch (e) {
-            if (ctx.mounted) {
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                SnackBar(content: Text('加入失敗：$e'), behavior: SnackBarBehavior.floating));
-            }
-          }
-        }, child: const Text('加入')),
-      ],
-    ));
   }
 
   void _confirmDeleteMember(BuildContext context, WidgetRef ref, String id, String name) {
