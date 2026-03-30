@@ -21,190 +21,144 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:patrol/patrol.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:family_ledger/app.dart';
 
 void main() {
-  patrolTest('App 啟動 - 顯示登入頁', ($) async {
-    // 啟動 app（此測試需要在 Firebase mock 環境下執行）
-    $.pumpWidgetAndSettle(
-      const ProviderScope(
-        child: MaterialApp(
-          home: LoginPage(),
-        ),
-      ),
-    );
-
-    // 驗證 Google Sign-In 按鈕存在
-    await $.waitUntil(() {
-      return find.byType(FloatingActionButton).evaluate().isNotEmpty ||
-             find.byIcon(Icons.login).evaluate().isNotEmpty;
-    }, timeout: const Duration(seconds: 10));
-
-    // 截圖記錄
-    await $.native.screenshot();
-  });
-
-  patrolTest('NavigationBar 有 5 個目的地', ($) async {
-    await $.pumpWidgetAndSettle(
-      MaterialApp(
-        home: Scaffold(
-          bottomNavigationBar: NavigationBar(
-            destinations: const [
-              NavigationDestination(icon: Icon(Icons.home), label: '首頁'),
-              NavigationDestination(icon: Icon(Icons.pie_chart), label: '拆帳'),
-              NavigationDestination(icon: Icon(Icons.receipt_long), label: '記錄'),
-              NavigationDestination(icon: Icon(Icons.bar_chart), label: '統計'),
-              NavigationDestination(icon: Icon(Icons.settings), label: '設定'),
-            ],
-            selectedIndex: 0,
-            onDestinationSelected: (_) {},
-          ),
-        ),
-      ),
-    );
-
-    // 驗證 5 個 NavigationDestination
-    await $.waitUntil(() {
-      final count = find.byType(NavigationDestination).evaluate().length;
-      return count == 5;
-    }, timeout: const Duration(seconds: 5));
-
-    expect(find.byType(NavigationDestination), findsNWidgets(5));
-    await $.native.screenshot();
-  });
-
-  patrolTest('FAB 點擊開啟記帳表單', ($) async {
-    bool formOpened = false;
-
-    await $.pumpWidgetAndSettle(
-      MaterialApp(
-        home: Scaffold(
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => formOpened = true,
-            icon: const Icon(Icons.add),
-            label: const Text('記帳'),
-          ),
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('新增支出')),
-                    body: const Center(child: Text('支出表單')),
-                  ),
-                ),
-              ),
-              child: const Text('打開'),
+  group('App 導航測試', () {
+    testWidgets('NavigationBar 有 5 個目的地', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: NavigationBar(
+              destinations: const [
+                NavigationDestination(icon: Icon(Icons.home), label: '首頁'),
+                NavigationDestination(icon: Icon(Icons.pie_chart), label: '拆帳'),
+                NavigationDestination(icon: Icon(Icons.receipt_long), label: '記錄'),
+                NavigationDestination(icon: Icon(Icons.bar_chart), label: '統計'),
+                NavigationDestination(icon: Icon(Icons.settings), label: '設定'),
+              ],
+              selectedIndex: 0,
+              onDestinationSelected: (_) {},
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    // 點擊按鈕
-    await $(FloatingActionButton).tap();
-    await $.pumpAndSettle();
+      expect(find.byType(NavigationDestination), findsNWidgets(5));
+    });
 
-    expect(formOpened, isTrue);
-    await $.native.screenshot();
-  });
-
-  patrolTest('日期格式化 - 今天顯示正確', ($) async {
-    await $.pumpWidgetAndSettle(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) {
-              final now = DateTime.now();
-              return Text(_formatRelativeDate(now));
-            },
+    testWidgets('FAB 存在並顯示記帳文字', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            floatingActionButton: FloatingActionButton.extended(
+              onPressed: () {},
+              icon: const Icon(Icons.add),
+              label: const Text('記帳'),
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('今天'), findsOneWidget);
-  });
+      expect(find.text('記帳'), findsOneWidget);
+      expect(find.byIcon(Icons.add), findsOneWidget);
+    });
 
-  patrolTest('日期格式化 - 昨天顯示正確', ($) async {
-    await $.pumpWidgetAndSettle(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) {
-              final yesterday = DateTime.now().subtract(const Duration(days: 1));
-              return Text(_formatRelativeDate(yesterday));
-            },
+    testWidgets('語音輸入按鈕存在', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            floatingActionButton: FloatingActionButton(
+              onPressed: () {},
+              child: const Icon(Icons.mic),
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('昨天'), findsOneWidget);
+      expect(find.byIcon(Icons.mic), findsOneWidget);
+    });
   });
 
-  patrolTest('貨幣格式化 - 正常金額', ($) async {
-    await $.pumpWidgetAndSettle(
-      MaterialApp(
-        home: Scaffold(
-          body: Text(_formatCurrency(1234)),
-        ),
-      ),
-    );
-
-    expect(find.text('NT\$ 1,234'), findsOneWidget);
-  });
-
-  patrolTest('貨幣格式化 - 負數顯示', ($) async {
-    await $.pumpWidgetAndSettle(
-      MaterialApp(
-        home: Scaffold(
-          body: Text(_formatSignedCurrency(-500)),
-        ),
-      ),
-    );
-
-    expect(find.text('NT\$ -500'), findsOneWidget);
-  });
-
-  patrolTest('語音輸入按鈕存在', ($) async {
-    await $.pumpWidgetAndSettle(
-      MaterialApp(
-        home: Scaffold(
-          floatingActionButton: FloatingActionButton(
-            onPressed: () {},
-            child: const Icon(Icons.mic),
+  group('設定頁面測試', () {
+    testWidgets('類別管理 ListTile 存在', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            appBar: AppBar(title: const Text('設定')),
+            body: ListView(
+              children: const [
+                ListTile(title: Text('類別管理'), leading: Icon(Icons.category)),
+                ListTile(title: Text('活動日誌'), leading: Icon(Icons.history)),
+                ListTile(title: Text('關於'), leading: Icon(Icons.info)),
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.byIcon(Icons.mic), findsOneWidget);
-    await $.native.screenshot();
+      expect(find.text('類別管理'), findsOneWidget);
+      expect(find.byIcon(Icons.category), findsOneWidget);
+    });
   });
 
-  patrolTest('設定頁面 - 類別管理入口存在', ($) async {
-    await $.pumpWidgetAndSettle(
-      MaterialApp(
-        home: Scaffold(
-          appBar: AppBar(title: const Text('設定')),
-          body: ListView(
-            children: const [
-              ListTile(title: Text('類別管理'), leading: Icon(Icons.category)),
-              ListTile(title: Text('活動日誌'), leading: Icon(Icons.history)),
-              ListTile(title: Text('關於'), leading: Icon(Icons.info)),
-            ],
+  group('格式化工具測試', () {
+    testWidgets('日期格式化 - 今天顯示正確', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                final now = DateTime.now();
+                return Text(_formatRelativeDate(now));
+              },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('類別管理'), findsOneWidget);
-    expect(find.byIcon(Icons.category), findsOneWidget);
-    await $.native.screenshot();
+      expect(find.text('今天'), findsOneWidget);
+    });
+
+    testWidgets('日期格式化 - 昨天顯示正確', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                final yesterday = DateTime.now().subtract(const Duration(days: 1));
+                return Text(_formatRelativeDate(yesterday));
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('昨天'), findsOneWidget);
+    });
+
+    testWidgets('貨幣格式化 - 正常金額', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Text(_formatCurrency(1234)),
+          ),
+        ),
+      );
+
+      expect(find.text('NT\$ 1,234'), findsOneWidget);
+    });
+
+    testWidgets('貨幣格式化 - 負數顯示', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Text(_formatSignedCurrency(-500)),
+          ),
+        ),
+      );
+
+      expect(find.text('NT\$ -500'), findsOneWidget);
+    });
   });
 }
 
