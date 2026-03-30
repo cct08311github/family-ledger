@@ -12,6 +12,15 @@ import '../models/settlement.dart';
 import '../models/enums.dart';
 import '../models/split_detail.dart';
 import 'database_service.dart';
+import 'network_info_service.dart';
+
+/// 同步狀態枚舉
+enum SyncStatus {
+  idle,       // 閒置
+  syncing,    // 同步中
+  error,       // 同步錯誤
+  offline,     // 離線
+}
 
 /// Firebase Firestore 雙向同步服務
 ///
@@ -32,11 +41,20 @@ class FirebaseSyncService {
   /// 目前登入的 Firebase 使用者
   static User? get currentUser => AuthService.currentUser;
 
-  /// 是否已登入（含匿名）
-  static bool get isSignedIn => AuthService.hasAnyAuth;
+  /// 是否已登入（需同時網路連線）
+  static bool get isSignedIn =>
+      AuthService.hasAnyAuth &&
+      NetworkInfoService.status == NetworkStatus.online;
 
+  /// 是否已登入（不含網路檢查，用於本地操作）
+  static bool get isAuthed => AuthService.hasAnyAuth;
+
+  /// 同步狀態
+  static SyncStatus syncStatus = SyncStatus.idle;
   static StreamSubscription? _expenseListener;
   static StreamSubscription? _settlementListener;
+  static StreamSubscription? _memberListener;
+  static StreamSubscription? _groupListener;
   static String? _syncedGroupId;
 
   /// 匿名登入（舊方法，保留向下相容）
@@ -46,10 +64,22 @@ class FirebaseSyncService {
 
   /// 首次同步：把本地群組、成員、支出、結算上傳到 Firestore
   static Future<void> initialSync() async {
-    if (!isSignedIn) return;
+    if (!isAuthed) return;
+
+    // 檢查網路連線
+    final isOnline = await NetworkInfoService.isNetworkAvailable();
+    if (!isOnline) {
+      syncStatus = SyncStatus.offline;
+      return;
+    }
+
+    syncStatus = SyncStatus.syncing;
     final isar = await DatabaseService.instance;
     final groupId = await DatabaseService.getPrimaryGroupId();
-    if (groupId == null) return;
+    if (groupId == null) {
+      syncStatus = SyncStatus.idle;
+      return;
+    }
 
     // 上傳群組
     final group = await isar.familyGroups.filter().idEqualTo(groupId).findFirst();
@@ -75,6 +105,7 @@ class FirebaseSyncService {
 
     // 開始即時監聽
     startRealtimeSync(groupId);
+    syncStatus = SyncStatus.idle;
   }
 
   /// 開始即時監聽 Firestore 變更（支出 + 結算）
@@ -143,6 +174,52 @@ class FirebaseSyncService {
     }, onError: (e) {
       // Firestore 監聽錯誤（如 permission denied）靜默忽略，不導致閃退
       if (kDebugMode) debugPrint('Settlement listener error: $e');
+      syncStatus = SyncStatus.error;
+    });
+
+    // 監聽遠端成員變更
+    _memberListener = _membersRef(groupId)
+        .snapshots()
+        .listen((snapshot) async {
+      for (final change in snapshot.docChanges) {
+        try {
+          if (change.type == DocumentChangeType.removed) {
+            final isar = await DatabaseService.instance;
+            final local = await isar.familyMembers.filter().idEqualTo(change.doc.id).findFirst();
+            if (local != null) {
+              await isar.writeTxn(() async {
+                await isar.familyMembers.delete(local.isarId);
+              });
+            }
+          } else {
+            final data = change.doc.data();
+            if (data != null) {
+              await _mergeMemberFromRemote(data, change.doc.id);
+            }
+          }
+        } catch (e, st) {
+          if (kDebugMode) debugPrint('Member sync error: $e\n$st');
+        }
+      }
+    }, onError: (e) {
+      if (kDebugMode) debugPrint('Member listener error: $e');
+      syncStatus = SyncStatus.error;
+    });
+
+    // 監聽遠端群組變更（如邀請加入、邀請碼更新等）
+    _groupListener = _groupDoc(groupId)
+        .snapshots()
+        .listen((snapshot) async {
+      try {
+        final data = snapshot.data();
+        if (data == null) return;
+        await _mergeGroupFromRemote(data, groupId);
+      } catch (e, st) {
+        if (kDebugMode) debugPrint('Group sync error: $e\n$st');
+      }
+    }, onError: (e) {
+      if (kDebugMode) debugPrint('Group listener error: $e');
+      syncStatus = SyncStatus.error;
     });
   }
 
@@ -150,8 +227,12 @@ class FirebaseSyncService {
   static void stopRealtimeSync() {
     _expenseListener?.cancel();
     _settlementListener?.cancel();
+    _memberListener?.cancel();
+    _groupListener?.cancel();
     _expenseListener = null;
     _settlementListener = null;
+    _memberListener = null;
+    _groupListener = null;
     _syncedGroupId = null;
   }
 
@@ -191,6 +272,41 @@ class FirebaseSyncService {
       // 防禦性：任何反序列化錯誤靜默忽略，不影響 app 運行
       if (kDebugMode) debugPrint('Settlement deserialize error: $e\n$st');
     }
+  }
+
+  /// 將遠端成員寫入本地 Isar
+  static Future<void> _mergeMemberFromRemote(
+      Map<String, dynamic> data, String memberId) async {
+    try {
+      final isar = await DatabaseService.instance;
+      final local = await isar.familyMembers.filter().idEqualTo(memberId).findFirst();
+
+      final createdAtRaw = data['createdAt'];
+      if (createdAtRaw is! Timestamp) return;
+
+      final member = FamilyMember()
+        ..id = memberId
+        ..groupId = (await DatabaseService.getPrimaryGroupId()) ?? ''
+        ..name = (data['name'] as String?) ?? ''
+        ..isCurrentUser = (data['isCurrentUser'] as bool?) ?? false
+        ..createdAt = createdAtRaw.toDate();
+
+      if (local != null) member.isarId = local.isarId;
+
+      await isar.writeTxn(() async {
+        await isar.familyMembers.put(member);
+      });
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('Member deserialize error: $e\n$st');
+    }
+  }
+
+  /// 將遠端群組寫入本地 Isar
+  /// 成員名單（memberUids）僅存於 Firestore，不同步至 Isar
+  static Future<void> _mergeGroupFromRemote(
+      Map<String, dynamic> data, String groupId) async {
+    // FamilyGroup Isar 模型不儲存 memberUids（僅用於 Firestore 安全規則）
+    // 目前群組層級無需同步至 Isar
   }
 
   // ── 群組同步 ──
@@ -343,7 +459,7 @@ class FirebaseSyncService {
         ..paymentMethod = PaymentMethod.values.firstWhere(
             (e) => e.name == (data['paymentMethod'] ?? 'cash'),
             orElse: () => PaymentMethod.cash)
-        ..splits = ((data['splits'] as List?) ?? []).where((s) => s is Map).map((s) {
+        ..splits = ((data['splits'] as List?) ?? []).whereType<Map>().map((s) {
           final map = s as Map<String, dynamic>;
           return SplitDetail()
             ..memberId = (map['memberId'] as String?) ?? ''
