@@ -44,7 +44,7 @@ class CategoryManagementPage extends ConsumerWidget {
             itemBuilder: (context, index) {
               final cat = categories[index];
               return Card(
-                key: ValueKey(cat.isarId),
+                key: ValueKey(cat.id),
                 child: ListTile(
                   leading: Text(cat.icon, style: const TextStyle(fontSize: 28)),
                   title: Text(cat.name),

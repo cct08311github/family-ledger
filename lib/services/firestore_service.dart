@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
+import '../config/app_constants.dart';
 import '../models/expense.dart';
 import '../models/family_group.dart';
 import '../models/family_member.dart';
@@ -349,7 +350,7 @@ class FirestoreService {
     return _notificationsRef(groupId)
         .where('recipientId', isEqualTo: recipientId)
         .orderBy('createdAt', descending: true)
-        .limit(50)
+        .limit(AppConstants.notificationLimit)
         .snapshots()
         .map((snap) => snap.docs
             .map((d) => AppNotification.fromFirestore(d.data(), d.id))

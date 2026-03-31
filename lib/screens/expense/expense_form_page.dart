@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../config/app_constants.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -45,7 +46,6 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   final Map<String, TextEditingController> _customCtrl = {};
   PaymentMethod _paymentMethod = PaymentMethod.cash;
   List<String> _receiptPaths = [];
-  static const _maxPhotos = 10;
   TextEditingController? _descAutoController;
   bool _isSaving = false;
 
@@ -478,7 +478,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
               Row(children: [
                 Text('收據 / 發票照片', style: theme.textTheme.labelLarge),
                 const Gap(8),
-                Text('${_receiptPaths.length}/$_maxPhotos',
+                Text('${_receiptPaths.length}/${AppConstants.maxReceiptPhotos}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
               ]),
@@ -513,7 +513,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                 ),
                 const Gap(8),
               ],
-              if (_receiptPaths.length < _maxPhotos)
+              if (_receiptPaths.length < AppConstants.maxReceiptPhotos)
                 OutlinedButton.icon(
                   onPressed: _pickReceipt,
                   icon: const Icon(Icons.camera_alt_outlined, size: 18),
@@ -549,7 +549,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       ])),
     );
     if (source == null) return;
-    if (_receiptPaths.length >= _maxPhotos) return;
+    if (_receiptPaths.length >= AppConstants.maxReceiptPhotos) return;
     final picked = await ImagePicker().pickImage(source: source, maxWidth: 1920, imageQuality: 85);
     if (picked == null) return;
     final saved = await ImageStorageService.saveReceipt(picked.path);

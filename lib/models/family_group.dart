@@ -1,9 +1,6 @@
 /// 家庭群組（例如「本家」「爸媽家」「旅行群」）
 /// 作為 Firestore DTO，序列化邏輯由 FirestoreService 處理。
 class FamilyGroup {
-  /// Isar auto-increment ID（移除 Isar 後保留欄位，純相容用）
-  int isarId = 0;
-
   /// 唯一識別碼（UUID）
   late String id;
 

@@ -2,7 +2,6 @@ import 'enums.dart';
 
 /// 家庭成員
 class FamilyMember {
-  int isarId = 0;
   late String id;
   late String groupId;
   late String name;

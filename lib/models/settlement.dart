@@ -1,6 +1,5 @@
 /// 結算記錄（記錄「還錢」動作）
 class Settlement {
-  int isarId = 0;
   late String id;
   late String groupId;
   late String fromMemberId;

@@ -1,6 +1,5 @@
 /// 操作日誌
 class ActivityLog {
-  int isarId = 0;
   late String id;
   late String action;
   late String actorName;

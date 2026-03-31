@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/app_constants.dart';
 
 /// AI 解析語音/文字為結構化記帳資料
 class ExpenseParserService {
@@ -60,7 +61,7 @@ class ExpenseParserService {
           }
         ],
         'generationConfig': {
-          'temperature': 0.1,
+          'temperature': AppConstants.geminiTemperature,
           'responseMimeType': 'application/json',
         },
       }),

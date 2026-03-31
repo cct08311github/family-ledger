@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:gap/gap.dart';
+import '../../config/app_constants.dart';
 import '../../models/expense.dart';
 import '../../providers/expense_provider.dart';
 import '../../providers/member_provider.dart';
@@ -18,7 +19,7 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final monthlyExpenses = ref.watch(monthlyExpensesProvider);
-    final recentExpenses = ref.watch(recentExpensesProvider(5));
+    final recentExpenses = ref.watch(recentExpensesProvider(AppConstants.recentExpenseCount));
     final members = ref.watch(membersProvider);
     final currentUser = ref.watch(currentUserProvider);
     final simplifiedDebts = ref.watch(simplifiedDebtsProvider);
