@@ -3,7 +3,6 @@ import 'package:family_ledger/services/split_calculator.dart';
 import 'package:family_ledger/models/split_detail.dart';
 import 'package:family_ledger/models/expense.dart';
 import 'package:family_ledger/models/settlement.dart';
-import 'package:family_ledger/models/enums.dart';
 
 void main() {
   group('SplitCalculator - calculateEqual', () {
