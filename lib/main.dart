@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'services/database_service.dart';
 import 'services/local_notification_service.dart';
-import 'services/firebase_sync_service.dart';
 import 'services/auth_service.dart';
 import 'services/log_service.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -24,8 +22,6 @@ void main() async {
       FlutterError.presentError(details);
     };
     await initializeDateFormatting('zh_TW', null);
-    LogService.info(LogTag.DB, 'Initializing Isar database');
-    await DatabaseService.instance;
     LogService.info(LogTag.APP, 'Initializing Firebase');
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     LogService.info(LogTag.APP, 'Firebase initialized');
@@ -52,12 +48,11 @@ void main() async {
       final user = await AuthService.authStateChanges.first;
       if (user != null && !user.isAnonymous) {
         LogService.info(LogTag.AUTH, 'Session restored: ${user.email ?? user.uid}');
-        await FirebaseSyncService.initialSync();
       } else {
         LogService.info(LogTag.AUTH, 'No active session');
       }
     } catch (e, st) {
-      LogService.error(LogTag.SYNC, 'Initial sync failed', e, st);
+      LogService.error(LogTag.AUTH, 'Auth session restore failed', e, st);
     }
     await LocalNotificationService.init();
     LogService.info(LogTag.APP, 'App startup complete');

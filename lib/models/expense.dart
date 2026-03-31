@@ -1,74 +1,83 @@
-import 'package:isar/isar.dart';
 import 'enums.dart';
 import 'split_detail.dart';
 
-part 'expense.g.dart';
-
 /// 支出記錄
-@collection
 class Expense {
-  Id isarId = Isar.autoIncrement;
-
-  /// 唯一識別碼（UUID）
-  @Index(unique: true)
+  int isarId = 0;
   late String id;
-
-  /// 所屬群組 ID
-  @Index()
   late String groupId;
-
-  /// 日期
-  @Index()
   late DateTime date;
-
-  /// 描述
   late String description;
-
-  /// 金額（NT$）
   late double amount;
-
-  /// 類別（餐飲、交通、購物…）
-  @Index()
   late String category;
-
-  /// 是否為共同支出（true = 需拆帳）
-  @Index()
   late bool isShared;
-
-  /// 分帳方式：equal / percentage / custom
-  @Enumerated(EnumType.name)
   late SplitMethod splitMethod;
-
-  /// 付款人 ID
-  @Index()
   late String payerId;
-
-  /// 付款人名稱（冗餘儲存）
   late String payerName;
-
-  /// 拆帳明細（嵌入式）
   late List<SplitDetail> splits;
-
-  /// 付款方式：cash / creditCard / transfer
-  @Enumerated(EnumType.name)
-  PaymentMethod paymentMethod = PaymentMethod.cash;
-
-  /// 發票照片本地路徑（保留向下相容）
+  late PaymentMethod paymentMethod;
   String? receiptPath;
-
-  /// 多張收據照片路徑（上限 10 張）
   List<String> receiptPaths = [];
-
-  /// 備註
   String? note;
-
-  /// 新增者 ID
   late String createdBy;
-
-  /// 建立時間
   late DateTime createdAt;
-
-  /// 更新時間
   late DateTime updatedAt;
-}
 
+  Expense();
+
+  Expense.fromFirestore(Map<String, dynamic> map, this.id) {
+    groupId = map['groupId'] as String? ?? '';
+    date = _toDateTime(map['date']);
+    description = map['description'] as String? ?? '';
+    amount = (map['amount'] as num?)?.toDouble() ?? 0;
+    category = map['category'] as String? ?? '其他';
+    isShared = map['isShared'] as bool? ?? false;
+    splitMethod = SplitMethod.values.firstWhere(
+      (e) => e.name == map['splitMethod'],
+      orElse: () => SplitMethod.equal,
+    );
+    payerId = map['payerId'] as String? ?? '';
+    payerName = map['payerName'] as String? ?? '';
+    splits = (map['splits'] as List?)
+            ?.map((s) => SplitDetail.fromMap(Map<String, dynamic>.from(s as Map)))
+            .toList() ??
+        [];
+    paymentMethod = PaymentMethod.values.firstWhere(
+      (e) => e.name == (map['paymentMethod'] ?? 'cash'),
+      orElse: () => PaymentMethod.cash,
+    );
+    receiptPath = map['receiptPath'] as String?;
+    receiptPaths = (map['receiptPaths'] as List?)?.cast<String>() ?? [];
+    note = map['note'] as String?;
+    createdBy = map['createdBy'] as String? ?? '';
+    createdAt = _toDateTime(map['createdAt']);
+    updatedAt = _toDateTime(map['updatedAt']);
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'groupId': groupId,
+      'date': date,
+      'description': description,
+      'amount': amount,
+      'category': category,
+      'isShared': isShared,
+      'splitMethod': splitMethod.name,
+      'payerId': payerId,
+      'payerName': payerName,
+      'splits': splits.map((s) => s.toMap()).toList(),
+      'paymentMethod': paymentMethod.name,
+      if (receiptPath != null) 'receiptPath': receiptPath,
+      'receiptPaths': receiptPaths,
+      if (note != null) 'note': note,
+      'createdBy': createdBy,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+    };
+  }
+
+  DateTime _toDateTime(dynamic value) {
+    if (value is DateTime) return value;
+    return DateTime.now();
+  }
+}

@@ -1,29 +1,33 @@
-import 'package:isar/isar.dart';
-
-part 'category.g.dart';
-
 /// 自訂支出類別
-@collection
 class Category {
-  Id isarId = Isar.autoIncrement;
-
-  /// 所屬群組 ID
-  @Index()
+  int isarId = 0;
+  late String id;
   late String groupId;
-
-  /// 類別名稱
-  @Index()
   late String name;
-
-  /// 圖示（emoji）
   late String icon;
-
-  /// 排序順序
   late int sortOrder;
-
-  /// 是否為預設類別（不可刪除）
   late bool isDefault;
-
-  /// 是否啟用
   late bool isActive;
+
+  Category();
+
+  Category.fromFirestore(Map<String, dynamic> map, this.id) {
+    groupId = map['groupId'] as String? ?? '';
+    name = map['name'] as String? ?? '';
+    icon = map['icon'] as String? ?? '📦';
+    sortOrder = map['sortOrder'] as int? ?? 0;
+    isDefault = map['isDefault'] as bool? ?? false;
+    isActive = map['isActive'] as bool? ?? true;
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'groupId': groupId,
+      'name': name,
+      'icon': icon,
+      'sortOrder': sortOrder,
+      'isDefault': isDefault,
+      'isActive': isActive,
+    };
+  }
 }

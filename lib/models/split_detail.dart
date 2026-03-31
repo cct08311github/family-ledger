@@ -1,22 +1,28 @@
-import 'package:isar/isar.dart';
-
-part 'split_detail.g.dart';
-
 /// 拆帳明細（嵌入在 Expense 中）
-@embedded
 class SplitDetail {
-  /// 成員 ID
   late String memberId;
-
-  /// 成員名稱（冗餘儲存，方便顯示）
   late String memberName;
-
-  /// 該成員應付金額
   late double shareAmount;
-
-  /// 該成員實際已付金額（付款人 = 全額，其他人 = 0）
   late double paidAmount;
-
-  /// 該成員是否參與此筆拆帳
   late bool isParticipant;
+
+  SplitDetail();
+
+  SplitDetail.fromMap(Map<String, dynamic> map) {
+    memberId = map['memberId'] as String? ?? '';
+    memberName = map['memberName'] as String? ?? '';
+    shareAmount = (map['shareAmount'] as num?)?.toDouble() ?? 0;
+    paidAmount = (map['paidAmount'] as num?)?.toDouble() ?? 0;
+    isParticipant = map['isParticipant'] as bool? ?? false;
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'memberId': memberId,
+      'memberName': memberName,
+      'shareAmount': shareAmount,
+      'paidAmount': paidAmount,
+      'isParticipant': isParticipant,
+    };
+  }
 }

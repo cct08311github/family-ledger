@@ -1,42 +1,47 @@
-import 'package:isar/isar.dart';
-
-part 'settlement.g.dart';
-
 /// 結算記錄（記錄「還錢」動作）
-@collection
 class Settlement {
-  Id isarId = Isar.autoIncrement;
-
-  /// 唯一識別碼（UUID）
-  @Index(unique: true)
+  int isarId = 0;
   late String id;
-
-  /// 所屬群組 ID
-  @Index()
   late String groupId;
-
-  /// 還錢的人 ID
   late String fromMemberId;
-
-  /// 還錢的人名稱
   late String fromMemberName;
-
-  /// 收錢的人 ID
   late String toMemberId;
-
-  /// 收錢的人名稱
   late String toMemberName;
-
-  /// 還款金額
   late double amount;
-
-  /// 備註
   String? note;
-
-  /// 結算日期
-  @Index()
   late DateTime date;
-
-  /// 建立時間
   late DateTime createdAt;
+
+  Settlement();
+
+  Settlement.fromFirestore(Map<String, dynamic> map, this.id) {
+    groupId = map['groupId'] as String? ?? '';
+    fromMemberId = map['fromMemberId'] as String? ?? '';
+    fromMemberName = map['fromMemberName'] as String? ?? '';
+    toMemberId = map['toMemberId'] as String? ?? '';
+    toMemberName = map['toMemberName'] as String? ?? '';
+    amount = (map['amount'] as num?)?.toDouble() ?? 0;
+    note = map['note'] as String?;
+    date = _toDateTime(map['date']);
+    createdAt = _toDateTime(map['createdAt']);
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'groupId': groupId,
+      'fromMemberId': fromMemberId,
+      'fromMemberName': fromMemberName,
+      'toMemberId': toMemberId,
+      'toMemberName': toMemberName,
+      'amount': amount,
+      if (note != null) 'note': note,
+      'date': date,
+      'createdAt': createdAt,
+    };
+  }
+
+  DateTime _toDateTime(dynamic value) {
+    if (value is DateTime) return value;
+    return DateTime.now();
+  }
 }

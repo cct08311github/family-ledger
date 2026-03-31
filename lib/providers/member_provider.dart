@@ -1,49 +1,71 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
-import 'package:uuid/uuid.dart';
 import '../models/enums.dart';
 import '../models/family_group.dart';
 import '../models/family_member.dart';
-import '../services/database_service.dart';
+import '../services/firestore_service.dart';
 
-const _uuid = Uuid();
-
-final currentGroupProvider = FutureProvider<FamilyGroup?>((ref) async {
-  final isar = await DatabaseService.instance;
-  return isar.familyGroups.filter().isPrimaryEqualTo(true).findFirst();
+/// 目前登入使用者的 Firebase UID
+final currentUidProvider = Provider<String?>((ref) {
+  return FirebaseAuth.instance.currentUser?.uid;
 });
 
-final initGroupProvider = FutureProvider<void>((ref) async {
-  final isar = await DatabaseService.instance;
-  final count = await isar.familyGroups.count();
-  if (count == 0) {
-    await isar.writeTxn(() async {
-      final now = DateTime.now();
-      await isar.familyGroups.put(FamilyGroup()
-        ..id = _uuid.v4()
-        ..name = '我的家庭'
-        ..isPrimary = true
-        ..createdAt = now
-        ..updatedAt = now);
-    });
+/// 目前群組（從 Firestore 取得）
+final currentGroupProvider = StreamProvider<FamilyGroup?>((ref) async* {
+  final uid = ref.watch(currentUidProvider);
+  if (uid == null) {
+    yield null;
+    return;
   }
+
+  // 先嘗試一次查詢取得 groupId
+  final group = await FirestoreService.getPrimaryGroup(uid);
+  if (group == null) {
+    yield null;
+    return;
+  }
+
+  // 然後監聽該群組的變化
+  yield* FirestoreService.watchPrimaryGroup(group.id);
 });
 
+/// 初始化群組（若不存在則建立）
+final initGroupProvider = FutureProvider<void>((ref) async {
+  final uid = ref.watch(currentUidProvider);
+  if (uid == null) return;
+
+  final existing = await FirestoreService.getPrimaryGroup(uid);
+  if (existing != null) return;
+
+  // 建立新群組
+  final groupId = await FirestoreService.createGroup('我的家庭');
+  // 新群組建立後自動加入自己為成員
+  await FirestoreService.addMember(
+    groupId: groupId,
+    name: '我',
+    role: MemberRole.admin,
+    isCurrentUser: true,
+    sortOrder: 0,
+  );
+});
+
+/// 監聽群組成員
 final membersProvider = StreamProvider<List<FamilyMember>>((ref) async* {
-  final isar = await DatabaseService.instance;
-  yield* isar.familyMembers
-      .where()
-      .sortBySortOrder()
-      .watch(fireImmediately: true);
+  final group = await ref.watch(currentGroupProvider.future);
+  if (group == null) {
+    yield [];
+    return;
+  }
+  yield* FirestoreService.watchMembers(group.id);
 });
 
+/// 監聽目前登入成員
 final currentUserProvider = StreamProvider<FamilyMember?>((ref) async* {
-  final isar = await DatabaseService.instance;
-  yield* isar.familyMembers
-      .filter()
-      .isCurrentUserEqualTo(true)
-      .watch(fireImmediately: true)
-      .map((list) => list.isEmpty ? null : list.first);
+  final members = await ref.watch(membersProvider.future);
+  yield* Stream.value(
+    members.where((m) => m.isCurrentUser).firstOrNull,
+  );
 });
 
 final memberNotifierProvider =
@@ -54,52 +76,56 @@ class MemberNotifier extends AsyncNotifier<void> {
   Future<void> build() async {}
 
   Future<void> addMember({required String name, bool isAdmin = false}) async {
-    final isar = await DatabaseService.instance;
-    final groupId = await DatabaseService.getPrimaryGroupId();
-    if (groupId == null) return;
-    final memberCount = await isar.familyMembers.count();
-    await isar.writeTxn(() async {
-      final member = FamilyMember()
-        ..id = _uuid.v4()
-        ..groupId = groupId
-        ..name = name
-        ..role = isAdmin ? MemberRole.admin : MemberRole.member
-        ..sortOrder = memberCount
-        ..isCurrentUser = memberCount == 0
-        ..createdAt = DateTime.now();
-      await isar.familyMembers.put(member);
-    });
+    final group = await ref.read(currentGroupProvider.future);
+    if (group == null) return;
+    final members = await ref.read(membersProvider.future);
+    final memberCount = members.length;
+    await FirestoreService.addMember(
+      groupId: group.id,
+      name: name,
+      role: isAdmin ? MemberRole.admin : MemberRole.member,
+      isCurrentUser: memberCount == 0,
+      sortOrder: memberCount,
+    );
   }
 
   Future<void> updateMember(String memberId, String newName) async {
-    final isar = await DatabaseService.instance;
-    await isar.writeTxn(() async {
-      final member = await isar.familyMembers.filter().idEqualTo(memberId).findFirst();
-      if (member != null) {
-        member.name = newName;
-        await isar.familyMembers.put(member);
-      }
-    });
+    final group = await ref.read(currentGroupProvider.future);
+    if (group == null) return;
+    final members = await ref.read(membersProvider.future);
+    final member = members.where((m) => m.id == memberId).firstOrNull;
+    if (member == null) return;
+    member.name = newName;
+    await FirestoreService.updateMember(group.id, member);
   }
 
   Future<void> deleteMember(String memberId) async {
-    final isar = await DatabaseService.instance;
-    await isar.writeTxn(() async {
-      final member = await isar.familyMembers.filter().idEqualTo(memberId).findFirst();
-      if (member != null) {
-        await isar.familyMembers.delete(member.isarId);
-      }
-    });
+    final group = await ref.read(currentGroupProvider.future);
+    if (group == null) return;
+    await FirestoreService.deleteMember(group.id, memberId);
   }
 
   Future<void> switchUser(String memberId) async {
-    final isar = await DatabaseService.instance;
-    await isar.writeTxn(() async {
-      final all = await isar.familyMembers.where().findAll();
-      for (final m in all) {
-        m.isCurrentUser = (m.id == memberId);
-        await isar.familyMembers.put(m);
-      }
-    });
+    final group = await ref.read(currentGroupProvider.future);
+    if (group == null) return;
+    final members = await ref.read(membersProvider.future);
+    final batch = FirebaseFirestore.instance.batch();
+    for (final m in members) {
+      final updated = FamilyMember()
+        ..id = m.id
+        ..groupId = m.groupId
+        ..name = m.name
+        ..role = m.role
+        ..sortOrder = m.sortOrder
+        ..isCurrentUser = (m.id == memberId)
+        ..createdAt = m.createdAt
+        ..updatedAt = DateTime.now();
+      batch.update(
+        FirebaseFirestore.instance.collection('groups').doc(group.id).collection('members').doc(m.id),
+        updated.toFirestore(),
+      );
+    }
+    await batch.commit();
+    ref.invalidate(membersProvider);
   }
 }

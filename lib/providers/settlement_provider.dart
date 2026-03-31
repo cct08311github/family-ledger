@@ -1,17 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
-import 'package:uuid/uuid.dart';
 import '../models/settlement.dart';
-import '../services/database_service.dart';
+import '../services/firestore_service.dart';
 import 'balance_provider.dart';
 import 'activity_log_provider.dart';
-import '../services/firebase_sync_service.dart';
-
-const _uuid = Uuid();
+import 'member_provider.dart';
 
 final allSettlementsProvider = StreamProvider<List<Settlement>>((ref) async* {
-  final isar = await DatabaseService.instance;
-  yield* isar.settlements.where().sortByDateDesc().watch(fireImmediately: true);
+  final group = await ref.watch(currentGroupProvider.future);
+  if (group == null) {
+    yield [];
+    return;
+  }
+  yield* FirestoreService.watchSettlements(group.id);
 });
 
 final settlementNotifierProvider =
@@ -29,13 +29,11 @@ class SettlementNotifier extends AsyncNotifier<void> {
     required double amount,
     String? note,
   }) async {
-    final isar = await DatabaseService.instance;
-    final groupId = await DatabaseService.getPrimaryGroupId();
-    if (groupId == null) return;
+    final group = await ref.read(currentGroupProvider.future);
+    if (group == null) return;
     final now = DateTime.now();
     final settlement = Settlement()
-      ..id = _uuid.v4()
-      ..groupId = groupId
+      ..groupId = group.id
       ..fromMemberId = fromMemberId
       ..fromMemberName = fromMemberName
       ..toMemberId = toMemberId
@@ -44,35 +42,26 @@ class SettlementNotifier extends AsyncNotifier<void> {
       ..note = note
       ..date = now
       ..createdAt = now;
-    await isar.writeTxn(() async {
-      await isar.settlements.put(settlement);
-    });
+    final id = await FirestoreService.addSettlement(settlement);
     await ActivityLogger.log(
       action: 'settlement_add',
       actorName: fromMemberName, actorId: fromMemberId,
       description: '$fromMemberName 付款給 $toMemberName NT\$ ${amount.toStringAsFixed(0)}',
-      entityId: settlement.id,
+      entityId: id,
+      groupId: group.id,
     );
-    if (FirebaseSyncService.isSignedIn) {
-      FirebaseSyncService.syncSettlementUp(groupId, settlement).catchError((_) {});
-    }
     await ref.read(balanceNotifierProvider.notifier).recalculate();
   }
 
   Future<void> deleteSettlement(Settlement settlement) async {
-    final isar = await DatabaseService.instance;
-    await isar.writeTxn(() async {
-      await isar.settlements.delete(settlement.isarId);
-    });
+    await FirestoreService.deleteSettlement(settlement.groupId, settlement.id);
     await ActivityLogger.log(
       action: 'settlement_delete',
       actorName: settlement.fromMemberName, actorId: settlement.fromMemberId,
       description: '刪除付款記錄：${settlement.fromMemberName} → ${settlement.toMemberName} NT\$ ${settlement.amount.toStringAsFixed(0)}',
       entityId: settlement.id,
+      groupId: settlement.groupId,
     );
-    if (FirebaseSyncService.isSignedIn) {
-      FirebaseSyncService.deleteSettlementRemote(settlement.groupId, settlement.id).catchError((_) {});
-    }
     await ref.read(balanceNotifierProvider.notifier).recalculate();
   }
 }

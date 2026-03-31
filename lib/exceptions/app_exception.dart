@@ -8,9 +8,8 @@ sealed class AppException implements Exception {
   final DateTime timestamp;
   final String? stackTrace;
 
-  AppException(this.message, {String? stackTrace})
-      : timestamp = DateTime.now(),
-        stackTrace = stackTrace;
+  AppException(this.message, {this.stackTrace})
+      : timestamp = DateTime.now();
 
   @override
   String toString() => '$runtimeType: $message';

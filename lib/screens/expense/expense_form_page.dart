@@ -327,7 +327,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
               const Gap(16),
               // 類別
               DropdownButtonFormField<String>(
-                value: catList.any((c) => c.name == _selectedCategory) ? _selectedCategory
+                initialValue: catList.any((c) => c.name == _selectedCategory) ? _selectedCategory
                     : (catList.isNotEmpty ? catList.first.name : '其他'),
                 decoration: const InputDecoration(labelText: '類別', prefixIcon: Icon(Icons.category_outlined), border: OutlineInputBorder()),
                 items: (catList.isNotEmpty ? catList.map((c) => c.name).toList()
@@ -362,7 +362,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
               const Gap(16),
               // 付款人
               DropdownButtonFormField<String>(
-                value: _payerId,
+                initialValue: _payerId,
                 decoration: const InputDecoration(labelText: '付款人（誰先付的）',
                     prefixIcon: Icon(Icons.payment), border: OutlineInputBorder()),
                 items: memberList.map((m) => DropdownMenuItem(value: m.id, child: Text(m.name))).toList(),

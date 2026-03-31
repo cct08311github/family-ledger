@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/theme_provider.dart';
@@ -65,16 +66,23 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   bool? _isLoggedIn; // null = 載入中
+  StreamSubscription<dynamic>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
     // 監聽 Firebase Auth 狀態（處理 app 重啟時的 session 恢復）
-    AuthService.authStateChanges.first.then((user) {
+    _authSubscription = AuthService.authStateChanges.listen((user) {
       if (mounted) {
         setState(() => _isLoggedIn = user != null && !user.isAnonymous);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -113,7 +121,7 @@ class _MainShellState extends State<MainShell> {
   final List<Widget> _pages = [
     const HomePage(),
     const SplitOverviewPage(),
-    RecordsPage(),
+    const RecordsPage(),
     const StatisticsPage(),
     const SettingsPage(),
   ];
@@ -126,7 +134,7 @@ class _MainShellState extends State<MainShell> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => ExpenseFormPage()),
+            MaterialPageRoute(builder: (_) => const ExpenseFormPage()),
           );
         },
         icon: const Icon(Icons.add),

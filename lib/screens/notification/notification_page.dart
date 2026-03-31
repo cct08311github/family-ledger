@@ -12,18 +12,22 @@ class NotificationPage extends ConsumerWidget {
     final theme = Theme.of(context);
     final notifications = ref.watch(userNotificationsProvider);
     final currentUser = ref.watch(currentUserProvider);
+    final currentGroup = ref.watch(currentGroupProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('通知'),
         actions: [
           currentUser.when(
-            data: (user) => user != null
-                ? TextButton(
-                    onPressed: () => NotificationService.markAllAsRead(user.id),
-                    child: const Text('全部已讀'),
-                  )
-                : const SizedBox.shrink(),
+            data: (user) {
+              final groupId = currentGroup.valueOrNull?.id;
+              return user != null && groupId != null
+                  ? TextButton(
+                      onPressed: () => NotificationService.markAllAsRead(groupId, user.id),
+                      child: const Text('全部已讀'),
+                    )
+                  : const SizedBox.shrink();
+            },
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
@@ -43,6 +47,7 @@ class NotificationPage extends ConsumerWidget {
               ]),
             );
           }
+          final groupId = currentGroup.valueOrNull?.id;
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: items.length,
@@ -93,7 +98,9 @@ class NotificationPage extends ConsumerWidget {
                           shape: BoxShape.circle,
                         ),
                       ),
-                onTap: () => NotificationService.markAsRead(n),
+                onTap: groupId != null
+                    ? () => NotificationService.markAsRead(groupId, n)
+                    : null,
               );
             },
           );

@@ -1,16 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
 import '../models/activity_log.dart';
-import '../services/database_service.dart';
+import '../services/firestore_service.dart';
+import 'member_provider.dart';
 
 /// 最近 100 筆操作日誌
 final activityLogsProvider = StreamProvider<List<ActivityLog>>((ref) async* {
-  final isar = await DatabaseService.instance;
-  yield* isar.activityLogs
-      .where()
-      .sortByCreatedAtDesc()
-      .limit(100)
-      .watch(fireImmediately: true);
+  final group = await ref.watch(currentGroupProvider.future);
+  if (group == null) {
+    yield [];
+    return;
+  }
+  yield* FirestoreService.watchActivityLogs(group.id, limit: 100);
 });
 
 /// 記錄操作日誌
@@ -21,17 +21,17 @@ class ActivityLogger {
     required String actorId,
     required String description,
     String? entityId,
+    String? groupId,
   }) async {
-    final isar = await DatabaseService.instance;
+    if (groupId == null) return;
     final entry = ActivityLog()
       ..action = action
       ..actorName = actorName
       ..actorId = actorId
       ..description = description
       ..entityId = entityId
+      ..groupId = groupId
       ..createdAt = DateTime.now();
-    await isar.writeTxn(() async {
-      await isar.activityLogs.put(entry);
-    });
+    await FirestoreService.addActivityLog(groupId, entry);
   }
 }

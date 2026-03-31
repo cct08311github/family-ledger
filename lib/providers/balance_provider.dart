@@ -1,24 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
-import '../models/expense.dart';
-import '../models/balance.dart';
-import '../models/family_member.dart';
-import '../models/settlement.dart';
-import '../services/database_service.dart';
 import '../services/split_calculator.dart';
-
-final balancesProvider = StreamProvider<List<Balance>>((ref) async* {
-  final isar = await DatabaseService.instance;
-  yield* isar.balances.where().watch(fireImmediately: true);
-});
+import 'member_provider.dart';
+import 'expense_provider.dart';
+import 'settlement_provider.dart';
 
 final simplifiedDebtsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final isar = await DatabaseService.instance;
-  final expenses = await isar.expenses.filter().isSharedEqualTo(true).findAll();
-  final settlements = await isar.settlements.where().findAll();
-  final netDebts = SplitCalculator.calculateNetDebts(expenses: expenses, settlements: settlements);
+  final expenses = await ref.watch(allExpensesProvider.future);
+  final settlements = await ref.watch(allSettlementsProvider.future);
+  final members = await ref.watch(membersProvider.future);
+  final sharedExpenses = expenses.where((e) => e.isShared).toList();
+  final netDebts = SplitCalculator.calculateNetDebts(expenses: sharedExpenses, settlements: settlements);
   final simplified = SplitCalculator.simplifyDebts(netDebts);
-  final members = await isar.familyMembers.where().findAll();
   final nameMap = {for (final m in members) m.id: m.name};
   return simplified.map((debt) => {
     'from': debt['from'],
@@ -30,10 +22,10 @@ final simplifiedDebtsProvider = FutureProvider<List<Map<String, dynamic>>>((ref)
 });
 
 final memberNetBalanceProvider = FutureProvider<Map<String, double>>((ref) async {
-  final isar = await DatabaseService.instance;
-  final expenses = await isar.expenses.filter().isSharedEqualTo(true).findAll();
-  final settlements = await isar.settlements.where().findAll();
-  final netDebts = SplitCalculator.calculateNetDebts(expenses: expenses, settlements: settlements);
+  final expenses = await ref.watch(allExpensesProvider.future);
+  final settlements = await ref.watch(allSettlementsProvider.future);
+  final sharedExpenses = expenses.where((e) => e.isShared).toList();
+  final netDebts = SplitCalculator.calculateNetDebts(expenses: sharedExpenses, settlements: settlements);
   final Map<String, double> balances = {};
   netDebts.forEach((key, amount) {
     final parts = key.split('->');
@@ -51,31 +43,9 @@ class BalanceNotifier extends AsyncNotifier<void> {
   @override
   Future<void> build() async {}
 
+  /// 重新計算餘額（invalidate 依賴的 FutureProvider）
   Future<void> recalculate() async {
-    final isar = await DatabaseService.instance;
-    final groupId = await DatabaseService.getPrimaryGroupId();
-    if (groupId == null) return;
-    final expenses = await isar.expenses.filter().isSharedEqualTo(true).findAll();
-    final settlements = await isar.settlements.where().findAll();
-    final members = await isar.familyMembers.where().findAll();
-    final nameMap = {for (final m in members) m.id: m.name};
-    final netDebts = SplitCalculator.calculateNetDebts(expenses: expenses, settlements: settlements);
-    final now = DateTime.now();
-    await isar.writeTxn(() async {
-      await isar.balances.filter().groupIdEqualTo(groupId).deleteAll();
-      for (final entry in netDebts.entries) {
-        final parts = entry.key.split('->');
-        final balance = Balance()
-          ..groupId = groupId
-          ..fromMemberId = parts[0]
-          ..fromMemberName = nameMap[parts[0]] ?? parts[0]
-          ..toMemberId = parts[1]
-          ..toMemberName = nameMap[parts[1]] ?? parts[1]
-          ..amount = entry.value
-          ..updatedAt = now;
-        await isar.balances.put(balance);
-      }
-    });
+    // 雲端優先：直接 invalidate，未來需要可擴充為快取至 Firestore
     ref.invalidate(simplifiedDebtsProvider);
     ref.invalidate(memberNetBalanceProvider);
   }

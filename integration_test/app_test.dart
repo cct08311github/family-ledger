@@ -141,8 +141,8 @@ void main() {
               body: Builder(
                 builder: (context) {
                   // Test equal split calculation: 300 / 3 = 100 each
-                  final amount = 300;
-                  final people = 3;
+                  const amount = 300;
+                  const people = 3;
                   final perPerson = (amount / people).round();
                   return Text('NT\$ $perPerson');
                 },
@@ -161,7 +161,7 @@ void main() {
             home: Scaffold(
               body: Builder(
                 builder: (context) {
-                  final total = 1000;
+                  const total = 1000;
                   final p1 = (total * 0.5).round();
                   final p2 = (total * 0.3).round();
                   final p3 = total - p1 - p2; //  remainder to last
