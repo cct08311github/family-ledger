@@ -126,6 +126,27 @@ class _MonthlySummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (expenses.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(Icons.calendar_month, color: theme.colorScheme.primary, size: 20),
+                const Gap(8),
+                Text(monthLabel, style: theme.textTheme.titleMedium),
+              ]),
+              const Gap(16),
+              Text('本月尚無支出記錄',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
+            ],
+          ),
+        ),
+      );
+    }
     final total = expenses.fold<double>(0, (s, e) => s + e.amount);
     final sharedTotal = expenses.where((e) => e.isShared).fold<double>(0, (s, e) => s + e.amount);
     final personalTotal = total - sharedTotal;
@@ -282,7 +303,10 @@ class _RecentExpensesCard extends StatelessWidget {
                       width: 40, height: 40,
                       decoration: BoxDecoration(color: theme.colorScheme.primaryContainer, borderRadius: BorderRadius.circular(10)),
                       alignment: Alignment.center,
-                      child: Text(e.isShared ? '👥' : '👤', style: const TextStyle(fontSize: 18)),
+                      child: Semantics(
+                        label: e.isShared ? '共同支出' : '個人支出',
+                        child: Text(e.isShared ? '👥' : '👤', style: const TextStyle(fontSize: 18)),
+                      ),
                     ),
                     const Gap(12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
