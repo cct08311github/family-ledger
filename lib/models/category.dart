@@ -1,6 +1,5 @@
 /// 自訂支出類別
 class Category {
-  int isarId = 0;
   late String id;
   late String groupId;
   late String name;

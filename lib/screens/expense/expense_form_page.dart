@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../config/app_constants.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,6 +15,7 @@ import '../../providers/expense_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../services/image_storage_service.dart';
 import '../../services/expense_parser_service.dart';
+import '../../services/split_calculator.dart';
 import '../../services/app_settings_service.dart';
 import '../../widgets/voice_input_button.dart';
 import '../../widgets/calculator_sheet.dart';
@@ -45,7 +47,6 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   final Map<String, TextEditingController> _customCtrl = {};
   PaymentMethod _paymentMethod = PaymentMethod.cash;
   List<String> _receiptPaths = [];
-  static const _maxPhotos = 10;
   TextEditingController? _descAutoController;
   bool _isSaving = false;
 
@@ -478,7 +479,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
               Row(children: [
                 Text('收據 / 發票照片', style: theme.textTheme.labelLarge),
                 const Gap(8),
-                Text('${_receiptPaths.length}/$_maxPhotos',
+                Text('${_receiptPaths.length}/${AppConstants.maxReceiptPhotos}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.5))),
               ]),
@@ -513,7 +514,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                 ),
                 const Gap(8),
               ],
-              if (_receiptPaths.length < _maxPhotos)
+              if (_receiptPaths.length < AppConstants.maxReceiptPhotos)
                 OutlinedButton.icon(
                   onPressed: _pickReceipt,
                   icon: const Icon(Icons.camera_alt_outlined, size: 18),
@@ -549,7 +550,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       ])),
     );
     if (source == null) return;
-    if (_receiptPaths.length >= _maxPhotos) return;
+    if (_receiptPaths.length >= AppConstants.maxReceiptPhotos) return;
     final picked = await ImagePicker().pickImage(source: source, maxWidth: 1920, imageQuality: 85);
     if (picked == null) return;
     final saved = await ImageStorageService.saveReceipt(picked.path);
@@ -603,38 +604,27 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
           .map((m) => {'id': m.id, 'name': m.name}).toList();
       switch (_splitMethod) {
         case SplitMethod.equal:
-          final per = amount / participants.length;
-          final rounded = double.parse(per.toStringAsFixed(0));
-          final rem = amount - (rounded * participants.length);
-          splits = participants.asMap().entries.map((e) {
-            final isLast = e.key == participants.length - 1;
-            return SplitDetail()
-              ..memberId = e.value['id']!
-              ..memberName = e.value['name']!
-              ..shareAmount = isLast ? rounded + rem : rounded
-              ..paidAmount = (e.value['id'] == _payerId) ? amount : 0
-              ..isParticipant = true;
-          }).toList();
+          splits = SplitCalculator.calculateEqual(
+            amount: amount,
+            payerId: _payerId!,
+            participants: participants,
+          );
           break;
         case SplitMethod.percentage:
-          splits = _percentages.entries.where((e) => _participantIds.contains(e.key)).map((e) {
-            return SplitDetail()
-              ..memberId = e.key
-              ..memberName = nameMap[e.key] ?? ''
-              ..shareAmount = double.parse((amount * e.value / 100).toStringAsFixed(0))
-              ..paidAmount = (e.key == _payerId) ? amount : 0
-              ..isParticipant = true;
-          }).toList();
+          splits = SplitCalculator.calculatePercentage(
+            amount: amount,
+            payerId: _payerId!,
+            percentages: _percentages,
+            memberNames: nameMap,
+          );
           break;
         case SplitMethod.custom:
-          splits = _customAmounts.entries.where((e) => _participantIds.contains(e.key)).map((e) {
-            return SplitDetail()
-              ..memberId = e.key
-              ..memberName = nameMap[e.key] ?? ''
-              ..shareAmount = e.value
-              ..paidAmount = (e.key == _payerId) ? amount : 0
-              ..isParticipant = true;
-          }).toList();
+          splits = SplitCalculator.calculateCustom(
+            amount: amount,
+            payerId: _payerId!,
+            customAmounts: _customAmounts,
+            memberNames: nameMap,
+          );
           break;
       }
     }

@@ -1,16 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../config/app_constants.dart';
 import '../models/activity_log.dart';
 import '../services/firestore_service.dart';
 import 'member_provider.dart';
 
-/// 最近 100 筆操作日誌
+/// 最近操作日誌
 final activityLogsProvider = StreamProvider<List<ActivityLog>>((ref) async* {
   final group = await ref.watch(currentGroupProvider.future);
   if (group == null) {
     yield [];
     return;
   }
-  yield* FirestoreService.watchActivityLogs(group.id, limit: 100);
+  yield* FirestoreService.watchActivityLogs(group.id, limit: AppConstants.activityLogLimit);
 });
 
 /// 記錄操作日誌

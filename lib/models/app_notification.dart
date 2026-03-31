@@ -1,6 +1,5 @@
 /// 應用內通知
 class AppNotification {
-  int isarId = 0;
   late String id;
   late String type;
   late String title;

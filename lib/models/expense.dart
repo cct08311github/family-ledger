@@ -3,7 +3,6 @@ import 'split_detail.dart';
 
 /// 支出記錄
 class Expense {
-  int isarId = 0;
   late String id;
   late String groupId;
   late DateTime date;
