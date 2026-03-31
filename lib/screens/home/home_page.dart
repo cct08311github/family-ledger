@@ -44,7 +44,12 @@ class HomePage extends ConsumerWidget {
       ),
       body: members.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('錯誤：$e')),
+        error: (e, _) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.error_outline, color: theme.colorScheme.error, size: 40),
+          const Gap(8),
+          Text('載入失敗', style: TextStyle(color: theme.colorScheme.error)),
+          TextButton(onPressed: () => ref.invalidate(membersProvider), child: const Text('重試')),
+        ])),
         data: (memberList) {
           if (memberList.isEmpty) {
             return Center(
