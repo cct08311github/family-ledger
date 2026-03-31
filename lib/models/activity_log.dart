@@ -1,30 +1,41 @@
-import 'package:isar/isar.dart';
-
-part 'activity_log.g.dart';
-
 /// 操作日誌
-@collection
 class ActivityLog {
-  Id isarId = Isar.autoIncrement;
-
-  /// 操作類型：expense_add, expense_edit, expense_delete,
-  ///          settlement_add, settlement_delete, member_add, member_edit, etc.
-  @Index()
+  int isarId = 0;
+  late String id;
   late String action;
-
-  /// 操作者名稱
   late String actorName;
-
-  /// 操作者 ID
   late String actorId;
-
-  /// 描述（人類可讀）
   late String description;
-
-  /// 相關實體 ID（可選）
   String? entityId;
-
-  /// 操作時間
-  @Index()
+  late String groupId;
   late DateTime createdAt;
+
+  ActivityLog();
+
+  ActivityLog.fromFirestore(Map<String, dynamic> map, this.id) {
+    action = map['action'] as String? ?? '';
+    actorName = map['actorName'] as String? ?? '';
+    actorId = map['actorId'] as String? ?? '';
+    description = map['description'] as String? ?? '';
+    entityId = map['entityId'] as String?;
+    groupId = map['groupId'] as String? ?? '';
+    createdAt = _toDateTime(map['createdAt']);
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'action': action,
+      'actorName': actorName,
+      'actorId': actorId,
+      'description': description,
+      if (entityId != null) 'entityId': entityId,
+      'createdAt': createdAt,
+      'groupId': groupId,
+    };
+  }
+
+  DateTime _toDateTime(dynamic value) {
+    if (value is DateTime) return value;
+    return DateTime.now();
+  }
 }

@@ -1,33 +1,41 @@
-import 'package:isar/isar.dart';
-
-part 'balance.g.dart';
-
-/// 兩人之間的債務餘額（快取，每次支出變動後重新計算）
-@collection
+/// 兩人之間的債務餘額（快取）
 class Balance {
-  Id isarId = Isar.autoIncrement;
-
-  /// 所屬群組 ID
-  @Index()
+  int isarId = 0;
+  late String id;
   late String groupId;
-
-  /// 欠錢的人 ID
-  @Index()
   late String fromMemberId;
-
-  /// 欠錢的人名稱
   late String fromMemberName;
-
-  /// 被欠錢的人 ID
-  @Index()
   late String toMemberId;
-
-  /// 被欠錢的人名稱
   late String toMemberName;
-
-  /// 金額（正數 = fromMember 欠 toMember）
   late double amount;
-
-  /// 最後更新時間
   late DateTime updatedAt;
+
+  Balance();
+
+  Balance.fromFirestore(Map<String, dynamic> map, this.id) {
+    groupId = map['groupId'] as String? ?? '';
+    fromMemberId = map['fromMemberId'] as String? ?? '';
+    fromMemberName = map['fromMemberName'] as String? ?? '';
+    toMemberId = map['toMemberId'] as String? ?? '';
+    toMemberName = map['toMemberName'] as String? ?? '';
+    amount = (map['amount'] as num?)?.toDouble() ?? 0;
+    updatedAt = _toDateTime(map['updatedAt']);
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'groupId': groupId,
+      'fromMemberId': fromMemberId,
+      'fromMemberName': fromMemberName,
+      'toMemberId': toMemberId,
+      'toMemberName': toMemberName,
+      'amount': amount,
+      'updatedAt': updatedAt,
+    };
+  }
+
+  DateTime _toDateTime(dynamic value) {
+    if (value is DateTime) return value;
+    return DateTime.now();
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import '../../models/category.dart';
 import '../../providers/category_provider.dart';
+import '../../providers/member_provider.dart';
 
 class CategoryManagementPage extends ConsumerWidget {
   const CategoryManagementPage({super.key});
@@ -153,7 +154,10 @@ class CategoryManagementPage extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, WidgetRef ref, Category cat) {
+  void _confirmDelete(BuildContext context, WidgetRef ref, Category cat) async {
+    final group = await ref.read(currentGroupProvider.future);
+    if (group == null) return;
+    if (!context.mounted) return;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -163,7 +167,7 @@ class CategoryManagementPage extends ConsumerWidget {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
             onPressed: () {
-              ref.read(categoryNotifierProvider.notifier).deleteCategory(cat);
+              ref.read(categoryNotifierProvider.notifier).deleteCategory(group.id, cat);
               Navigator.pop(ctx);
             },
             style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),

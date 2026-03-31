@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
 import '../../services/auth_service.dart';
-import '../../services/firebase_sync_service.dart';
 import '../../services/log_service.dart';
 import '../settings/debug_log_page.dart';
 
@@ -29,9 +28,8 @@ class _LoginPageState extends State<LoginPage> {
         setState(() { _isLoading = false; });
         return; // 使用者取消
       }
-      // 登入成功，同步資料
-      LogService.info(LogTag.AUTH, 'Login success, starting initial sync');
-      await FirebaseSyncService.initialSync();
+      // 登入成功，繼續到主畫面（Firestore 即時監聽會自動取得資料）
+      LogService.info(LogTag.AUTH, 'Login success');
       widget.onLoginSuccess();
     } catch (e, st) {
       LogService.error(LogTag.AUTH, 'Login failed (${e.runtimeType})', e, st);

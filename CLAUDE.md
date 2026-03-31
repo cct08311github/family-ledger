@@ -6,7 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 flutter pub get                                              # Install dependencies
-dart run build_runner build --delete-conflicting-outputs     # Generate Isar .g.dart schemas (required after model changes)
 flutter run                                                  # Run app (macOS default, add -d <device> for others)
 flutter run -d 00008140-00110D4C2082201C                     # Run on physical iPhone (Chunting iPhone 16)
 flutter analyze                                              # Lint check
@@ -15,8 +14,6 @@ flutter test test/local_parser_test.dart                     # Run single test f
 firebase deploy --only firestore:rules                       # Deploy Firestore security rules
 firebase deploy --only storage                               # Deploy Storage security rules
 ```
-
-**Critical**: After ANY change to `@collection` or `@embedded` model classes, re-run `build_runner` before building. The `.g.dart` files are gitignored.
 
 **Xcode install fallback**: `flutter run` to physical iPhone often times out. Use Xcode directly: `open ios/Runner.xcworkspace` → select device → Run (Cmd+R).
 
@@ -27,15 +24,16 @@ firebase deploy --only storage                               # Deploy Storage se
 ### Stack
 - **Flutter 3.41+** / Dart 3.11+ with Material 3
 - **Riverpod** (flutter_riverpod) — state management
-- **Isar 3.1** — local embedded NoSQL database (source of truth)
-- **Firebase** — Firestore sync + Auth (Google Sign-In mandatory) + Storage (receipts)
+- **Cloud Firestore** — source of truth (with built-in offline persistence)
+- **Firebase Auth** — Google Sign-In mandatory
+- **Firebase Storage** — receipt photo uploads
 - **speech_to_text** — on-device voice recognition (zh_TW)
 
-### Data Flow (local-first with cloud sync)
+### Data Flow (Firestore-first)
 ```
-UI (ConsumerWidget) → ref.watch(provider) → StreamProvider → Isar .watch()
-UI mutation → AsyncNotifier → Isar writeTxn() → ActivityLogger → FirebaseSyncService (fire-and-forget)
-Firestore listener → mergeFromRemote() → Isar writeTxn() (newer timestamp wins)
+UI (ConsumerWidget) → ref.watch(provider) → StreamProvider → Firestore snapshots
+UI mutation → AsyncNotifier → FirestoreService CRUD → ActivityLogger
+Firestore offline persistence → automatic sync when back online
 Receipt photos → ReceiptStorageService → Firebase Storage (URL replaces local path)
 ```
 
@@ -51,39 +49,36 @@ App launch → _AuthGate checks AuthService.isSignedIn
 - Invite code feature hidden in UI (code preserved for future use)
 
 ### Provider Pattern
-- **StreamProvider**: Real-time Isar queries with `.watch(fireImmediately: true)` — lists (members, expenses, categories, notifications)
+- **StreamProvider**: Real-time Firestore snapshot listeners — lists (members, expenses, categories, notifications)
 - **FutureProvider**: One-shot computed data (simplifiedDebts, netBalances, recentDescriptions) — invalidated manually
-- **AsyncNotifier**: CRUD operations that write to Isar, log to ActivityLogger, sync to Firebase, then trigger recalculation
+- **AsyncNotifier**: CRUD operations via `FirestoreService`, log to ActivityLogger, then trigger recalculation
 - **StateNotifier**: Theme settings with file-based persistence
 
 **Important**: After expense or settlement mutations, `balanceNotifierProvider.recalculate()` must be called to refresh the debt cache.
 
-### Isar Collections (8 + 1 embedded)
-| Collection | Purpose |
-|------------|---------|
-| FamilyGroup | Household group (isPrimary flag) |
-| FamilyMember | Members with local user switching (isCurrentUser) |
-| Expense | Core expense record with embedded SplitDetail[], receiptPaths[], paymentMethod |
-| SplitDetail | @embedded — per-member share/paid amounts |
-| Balance | Cached pairwise debt (cleared and rebuilt on recalc) |
-| Category | Expense categories with emoji icons, sortOrder, isActive |
-| Settlement | Payment records that reduce debt |
-| ActivityLog | Operation audit trail (action, actor, timestamp) |
-| AppNotification | In-app notifications for split expense participants |
+### Firestore Collections
+| Subcollection | Path | Purpose |
+|---------------|------|---------|
+| groups | `groups/{groupId}` | Household group (isPrimary flag) |
+| members | `groups/{groupId}/members/{id}` | Members with isCurrentUser switching |
+| expenses | `groups/{groupId}/expenses/{id}` | Core expense record with splits[], receiptPaths[] |
+| settlements | `groups/{groupId}/settlements/{id}` | Payment records that reduce debt |
+| categories | `groups/{groupId}/categories/{id}` | Expense categories with emoji icons, sortOrder |
+| balances | `groups/{groupId}/balances/{id}` | Cached pairwise debt |
+| activityLogs | `groups/{groupId}/activityLogs/{id}` | Operation audit trail |
+| notifications | `groups/{groupId}/notifications/{id}` | In-app notifications |
 
 ### Firebase Architecture
 ```
 Auth: Google Sign-In (mandatory) → Firebase UID shared across devices
-Firestore: groups/{groupId}/[members|expenses|settlements]/{id}
+Firestore: groups/{groupId}/[members|expenses|settlements|categories|balances|activityLogs|notifications]/{id}
 Storage: receipts/{groupId}/{expenseId}/{uuid}.jpg
 Security: memberUids[] on group doc — only listed UIDs can read/write
-Conflict: updatedAt/createdAt timestamp comparison, newer wins
+Offline: Firestore SDK built-in persistence — reads from cache, syncs when online
 ```
-- `FirebaseSyncService.initialSync()` — uploads all local data after Google login
-- `startRealtimeSync()` — Firestore snapshot listeners for expenses + settlements
+- `FirestoreService` — unified CRUD for all subcollections, replaces Isar + FirebaseSyncService
 - `ReceiptStorageService` — uploads receipt photos to Firebase Storage, replaces local paths with URLs
-- Sync is fire-and-forget: local write always succeeds, remote sync fails silently
-- Schema incompatibility auto-recovery: Isar DB is rebuilt if schema version mismatch
+- No manual sync logic — Firestore SDK handles offline/online transitions automatically
 
 ### Voice Input Pipeline
 ```
@@ -107,11 +102,10 @@ Three split methods (equal/percentage/custom), net debt calculation with settlem
 - **Deprecation**: Use `color.withValues(alpha: 0.5)` not `color.withOpacity(0.5)` (deprecated in Flutter 3.27+)
 - **Widget types**: `ConsumerWidget` for stateless pages, `ConsumerStatefulWidget` for forms with controllers
 - **Theme**: `CardThemeData` (not `CardTheme`) in Flutter 3.41+. Theme switching via `ThemeSettingsNotifier` with 6 color schemes.
-- **DB writes**: Always wrap in `isar.writeTxn(() async { ... })`
-- **IDs**: UUID v4 for all entity IDs, `Isar.autoIncrement` for isarId
+- **DB writes**: All mutations go through `FirestoreService` methods
+- **IDs**: UUID v4 for all entity IDs
 - **Logging**: All CRUD operations must call `ActivityLogger.log()` (from
-  `lib/providers/activity_log_provider.dart`) after Isar write
-- **Firebase sync**: All CRUD providers call `FirebaseSyncService.sync*Up()` after Isar write, wrapped in `.catchError((_) {})`
+  `lib/providers/activity_log_provider.dart`) after Firestore write
 - **Photos**: Up to 10 receipt photos per expense (`receiptPaths` list), backward compatible with old `receiptPath` field
 - **API Key storage**: Sensitive keys (Gemini) stored via `flutter_secure_storage` (Keychain), never in plain JSON
 - **API Key transmission**: Use HTTP headers (`x-goog-api-key`), never URL query parameters
@@ -123,14 +117,12 @@ Three split methods (equal/percentage/custom), net debt calculation with settlem
 - **Storage Rules**: `storage.rules` — auth required, 10MB limit, image types only
 - **Invite code**: 8-char cryptographic random (Random.secure()), 24h expiry, max 5 uses
 - **`google-services.json`**: Firebase API key config — **never commit** (已從 Git history 移除，若重新取得需手動放置於 `android/app/` 並確認已 gitignore)
-- **Deserialization**: Defensive null checks + try-catch on all Firestore → Isar merges
+- **Deserialization**: Defensive null checks + try-catch on all Firestore document parsing
 - **macOS sandbox**: Disabled (`com.apple.security.app-sandbox: false`) for Keychain access compatibility
 
 ## Known Constraints
 
-- **Isar + Web**: Isar's generated code uses large integer literals that exceed JS precision — web builds fail. Target mobile/desktop only.
-- **Isar experimental warnings**: `.g.dart` files produce ~48 `experimental_member_use` warnings — expected, cannot be suppressed.
-- **`.g.dart` in gitignore**: Generated files are not committed. Always run `build_runner` after cloning.
+- **Web builds**: A separate Next.js web app exists at `shared/projects/family-ledger-web/` sharing the same Firebase project.
 - **Google Sign-In on macOS**: Requires `CFBundleURLSchemes` with REVERSED_CLIENT_ID in `macos/Runner/Info.plist`.
 - **macOS code signing**: `flutter build macos` does not properly sign for Keychain. Use Xcode build instead.
 - **Firestore rules**: Production rules in `firestore.rules`, deploy with `firebase deploy --only firestore:rules`.
