@@ -39,7 +39,7 @@ class SettingsPage extends ConsumerWidget {
               currentGroup.when(
                 data: (group) => Text(group?.name ?? '未設定', style: theme.textTheme.bodyLarge),
                 loading: () => const CircularProgressIndicator(),
-                error: (e, _) => Text('$e'),
+                error: (e, _) => Text('載入失敗：$e', style: TextStyle(color: theme.colorScheme.error)),
               ),
             ]),
           )),
@@ -61,7 +61,7 @@ class SettingsPage extends ConsumerWidget {
               const Gap(8),
               members.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Text('$e'),
+                error: (e, _) => Text('載入失敗：$e', style: TextStyle(color: theme.colorScheme.error)),
                 data: (memberList) {
                   if (memberList.isEmpty) {
                     return Padding(

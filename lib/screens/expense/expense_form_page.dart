@@ -47,6 +47,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   List<String> _receiptPaths = [];
   static const _maxPhotos = 10;
   TextEditingController? _descAutoController;
+  bool _isSaving = false;
 
   String get _descText => (_descAutoController ?? _descController).text;
   bool get _isEditing => widget.existingExpense != null;
@@ -203,7 +204,12 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       ),
       body: members.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('錯誤：$e')),
+        error: (e, _) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.error_outline, color: theme.colorScheme.error, size: 40),
+          const Gap(8),
+          Text('載入失敗', style: TextStyle(color: theme.colorScheme.error)),
+          TextButton(onPressed: () => ref.invalidate(membersProvider), child: const Text('重試')),
+        ])),
         data: (memberList) {
           if (memberList.isEmpty) {
             return Center(child: Padding(
@@ -517,9 +523,11 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
               const Gap(32),
               // 儲存
               FilledButton.icon(
-                onPressed: () => _save(memberList),
-                icon: Icon(_isEditing ? Icons.save : Icons.add),
-                label: Text(_isEditing ? '儲存變更' : '新增支出'),
+                onPressed: _isSaving ? null : () => _save(memberList),
+                icon: _isSaving
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Icon(_isEditing ? Icons.save : Icons.add),
+                label: Text(_isSaving ? '儲存中…' : (_isEditing ? '儲存變更' : '新增支出')),
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
               ),
               const Gap(32),
@@ -563,6 +571,29 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
   Future<void> _save(List<FamilyMember> members) async {
     if (!_formKey.currentState!.validate()) return;
     if (_payerId == null) return;
+    // 驗證比例分攤總和為 100%
+    if (_isShared && _splitMethod == SplitMethod.percentage) {
+      final total = _percentages.values.fold(0.0, (a, b) => a + b);
+      if ((total - 100).abs() > 0.01) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('比例分攤合計需為 100%'), behavior: SnackBarBehavior.floating),
+        );
+        return;
+      }
+    }
+    // 驗證自訂分攤總和為支出金額
+    if (_isShared && _splitMethod == SplitMethod.custom) {
+      final total = _customAmounts.values.fold(0.0, (a, b) => a + b);
+      final amount = double.parse(_amountController.text);
+      if ((total - amount).abs() > 0.01) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('自訂分攤合計（${total.toStringAsFixed(0)}）需等於支出金額（${amount.toStringAsFixed(0)}）'), behavior: SnackBarBehavior.floating),
+        );
+        return;
+      }
+    }
+    setState(() => _isSaving = true);
+    try {
     final amount = double.parse(_amountController.text);
     final currentUser = ref.read(currentUserProvider).valueOrNull;
     final nameMap = {for (final m in members) m.id: m.name};
@@ -636,6 +667,11 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
         note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
         createdBy: currentUser?.id ?? _payerId!,
       );
+    }
+    } catch (e) {
+      // error is already shown by provider
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
